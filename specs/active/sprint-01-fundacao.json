@@ -1,0 +1,276 @@
+{
+  "id": "sprint-01",
+  "title": "Fundação — Setup, Auth e Modelos de Dados",
+  "sprint": 1,
+  "status": "in-progress",
+  "priority": "critical",
+  "estimated_days": 4,
+  "depends_on": null,
+  "status_note": "Código completo: NextAuth v5 (config edge-safe + Node), middleware role-based, API register, forms integrados, guards nos layouts, models BarbershopConfig/GalleryImage/VerificationToken adicionados e seed.ts escrito. tsc --noEmit passa. BLOQUEADO em s01-05: migration + seed exigem credenciais reais do NeonDB em .env.local (ausente). Após criar .env.local rodar: npx prisma migrate dev --name init && npx prisma db seed.",
+  "description": "Configurar o projeto do zero com toda a infraestrutura base: Next.js 14, Prisma + NeonDB, NextAuth v5 e os modelos de dados completos. Sem esta fundação, nenhuma feature de negócio pode ser construída.",
+
+  "acceptance_criteria": [
+    "npm run dev roda sem erros — http://localhost:3000 carrega",
+    "Prisma conectado ao NeonDB com todas as tabelas criadas via migration",
+    "Login com e-mail/senha funciona e redireciona para rota correta por role",
+    "Login com Google OAuth funciona e cria/associa usuário no banco",
+    "Rotas protegidas por role redirecionam corretamente quando acesso negado",
+    "Seed popula banco com: 1 admin, 2 barbeiros, 5 serviços, horários de funcionamento Seg-Sáb 09h-19h",
+    "Tokens de cor BARBERAG aplicados no Tailwind — accent #D4830A, primary #1A1A1A visíveis nas páginas",
+    "Arquivo .env.example documentado com todas as variáveis necessárias"
+  ],
+
+  "steps": [
+    {
+      "id": "s01-01",
+      "title": "Inicializar projeto Next.js 14 e instalar dependências",
+      "status": "done",
+      "details": "Criar projeto com App Router, TypeScript strict, Tailwind e diretório src/. Instalar todas as dependências de uma vez para evitar conflitos de versão.",
+      "commands": [
+        "npx create-next-app@latest barberag --typescript --tailwind --app --src-dir --import-alias '@/*'",
+        "cd barberag",
+        "npm install prisma@5 @prisma/client@5",
+        "npm install next-auth@beta @auth/prisma-adapter",
+        "npm install zod date-fns zustand framer-motion",
+        "npm install recharts",
+        "npm install bcryptjs",
+        "npm install -D @types/bcryptjs",
+        "npm install resend",
+        "npm install cloudinary",
+        "npx shadcn@latest init",
+        "npx shadcn@latest add button card badge input label form select dialog alert-dialog tabs separator avatar skeleton toast",
+        "npx prisma init --datasource-provider postgresql"
+      ],
+      "notes": "shadcn init perguntará sobre style (New York), base color (Neutral) e CSS variables (yes). O tema será sobrescrito com as cores da BARBERAG após a init.",
+      "tsconfig_settings": {
+        "file": "tsconfig.json",
+        "ensure": "strict: true, paths: { '@/*': ['./src/*'] }"
+      }
+    },
+    {
+      "id": "s01-02",
+      "title": "Configurar Tailwind com tokens de cor da BARBERAG",
+      "status": "done",
+      "details": "Sobrescrever tailwind.config.ts com as cores e fontes da identidade visual BARBERAG. Importar fontes Inter e Playfair Display via next/font.",
+      "file": "tailwind.config.ts",
+      "config_extend": {
+        "colors": {
+          "primary": { "DEFAULT": "#1A1A1A", "foreground": "#FFFFFF" },
+          "accent": { "DEFAULT": "#D4830A", "foreground": "#FFFFFF" },
+          "background": "#FFFFFF",
+          "muted": { "DEFAULT": "#F5F5F5", "foreground": "#666666" },
+          "success": { "DEFAULT": "#27AE60", "foreground": "#FFFFFF" },
+          "warning": { "DEFAULT": "#F39C12", "foreground": "#FFFFFF" },
+          "error": { "DEFAULT": "#C0392B", "foreground": "#FFFFFF" },
+          "textPrimary": "#1A1A1A",
+          "textMuted": "#666666",
+          "card": { "DEFAULT": "#F5F5F5", "foreground": "#1A1A1A" }
+        },
+        "fontFamily": {
+          "sans": ["Inter", "sans-serif"],
+          "display": ["Playfair Display", "serif"]
+        }
+      },
+      "globals_css": "Atualizar src/app/globals.css com CSS variables do shadcn mapeadas para as cores BARBERAG. --primary: 0 0% 10% (para #1A1A1A), --accent: 30 80% 43% (para #D4830A)."
+    },
+    {
+      "id": "s01-03",
+      "title": "Escrever schema.prisma completo",
+      "status": "done",
+      "details": "Definir todos os models conforme spec-geral.json#database_schema. Configurar duas connection strings (pooler e direct) para compatibilidade com NeonDB no Vercel.",
+      "file": "prisma/schema.prisma",
+      "models_to_create": [
+        "User — base de autenticação NextAuth com campo role (enum: CLIENT, BARBER, ADMIN)",
+        "Account — tabela OAuth padrão do NextAuth/PrismaAdapter",
+        "Session — tabela de sessão padrão do NextAuth",
+        "VerificationToken — para e-mail verification do NextAuth",
+        "Barber — perfil do barbeiro (1:1 com User)",
+        "Service — catálogo de serviços",
+        "BarberService — tabela pivô com preço customizado por barbeiro",
+        "WorkingHours — horários por dia da semana (barbeiro ou barbearia)",
+        "BlockedSlot — bloqueios pontuais de agenda",
+        "Appointment — agendamento (core do sistema)",
+        "AppointmentService — serviços dentro do agendamento (snapshot de preço/duração)",
+        "CommissionRule — regras de comissão com hierarquia de prioridade",
+        "Commission — comissão calculada por atendimento concluído",
+        "Review — avaliação pós-atendimento",
+        "BarbershopConfig — configuração singleton da barbearia",
+        "GalleryImage — fotos da landing page"
+      ],
+      "important_details": [
+        "Appointment.reviewToken deve ser String? @unique para link de avaliação sem login",
+        "CommissionRule: barberId, serviceId e paymentMethod são TODOS nullable — combinações definem a hierarquia",
+        "WorkingHours: barberId nullable — null significa horário padrão da barbearia",
+        "Adicionar @@index([barberId, scheduledAt]) em Appointment para performance da query anti-conflito",
+        "Appointment.status deve ser Enum: SCHEDULED, CONFIRMED, IN_PROGRESS, COMPLETED, NO_SHOW, CANCELLED",
+        "Commission.status deve ser Enum: PENDING, PAID",
+        "PaymentMethod deve ser Enum: CASH, PIX, DEBIT, CREDIT"
+      ],
+      "generator_config": "generator client { provider = 'prisma-client-js' }",
+      "datasource_config": "datasource db { provider = 'postgresql', url = env('DATABASE_URL'), directUrl = env('DATABASE_URL_UNPOOLED') }"
+    },
+    {
+      "id": "s01-04",
+      "title": "Configurar singleton do PrismaClient",
+      "status": "done",
+      "details": "Evitar múltiplas instâncias do PrismaClient durante hot-reload do Next.js em desenvolvimento.",
+      "file": "src/lib/prisma/client.ts",
+      "pattern": "Verificar globalThis.__prisma. Se existir, reutilizar. Se não, criar nova instância e atribuir a globalThis em ambiente dev. Em produção, sempre criar nova instância.",
+      "code_sketch": "const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }; export const prisma = globalForPrisma.prisma ?? new PrismaClient({ log: ['error'] }); if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;"
+    },
+    {
+      "id": "s01-05",
+      "title": "Executar migration inicial e seed",
+      "status": "pending",
+      "blocked_reason": "seed.ts escrito e ts-node instalado; execução exige DATABASE_URL/DATABASE_URL_UNPOOLED reais do NeonDB em .env.local (ausente). Rodar: npx prisma migrate dev --name init && npx prisma db seed.",
+      "details": "Criar e aplicar a primeira migration no NeonDB. Escrever seed com dados realistas para desenvolvimento.",
+      "commands": [
+        "npx prisma migrate dev --name init",
+        "npx prisma db seed"
+      ],
+      "seed_file": "prisma/seed.ts",
+      "seed_data": {
+        "admin": "User: name='Marcos Oliveira', email='admin@barberag.com', role=ADMIN, password=hash('admin123')",
+        "barbers": [
+          "Rafael Santos — bio: 'Especialista em cortes degradê e barba', specialties: ['Degradê', 'Barba Completa', 'Sobrancelha'], commissionRate: 0.40",
+          "Bruno Costa — bio: 'Master em cortes clássicos e navalha', specialties: ['Corte Clássico', 'Navalha', 'Platinado'], commissionRate: 0.35"
+        ],
+        "services": [
+          "Corte Masculino — 30min — R$35 — categoria: cabelo",
+          "Barba Completa — 25min — R$30 — categoria: barba",
+          "Combo Corte + Barba — 50min — R$55 — categoria: combo",
+          "Sobrancelha — 15min — R$15 — categoria: sobrancelha",
+          "Pigmentação de Barba — 40min — R$45 — categoria: tratamento"
+        ],
+        "working_hours": "Seg (1) a Sáb (6): startTime='09:00', endTime='19:00'. Cada barbeiro tem os mesmos horários inicialmente.",
+        "blocked_slot": "BlockedSlot geral (barberId null): Domingo (day 0) inteiro, como exemplo de feriado.",
+        "commission_rules": [
+          "Regra padrão barbearia: barberId=null, serviceId=null, paymentMethod=null, rate=0.30, priority=1",
+          "Regra Rafael geral: barberId=Rafael, serviceId=null, paymentMethod=null, rate=0.40, priority=2",
+          "Regra Bruno geral: barberId=Bruno, serviceId=null, paymentMethod=null, rate=0.35, priority=2"
+        ],
+        "barbershop_config": "name='BARBERAG', address='Rua Exemplo, 123', phone='(11) 99999-9999', timezone='America/Sao_Paulo', cancelPolicy=120"
+      },
+      "package_json_script": "Adicionar em package.json: { \"prisma\": { \"seed\": \"ts-node --compiler-options '{\\\"module\\\":\\\"CommonJS\\\"}' prisma/seed.ts\" } }"
+    },
+    {
+      "id": "s01-06",
+      "title": "Configurar NextAuth v5",
+      "status": "done",
+      "details": "Configurar autenticação com dois providers: Credentials (e-mail/senha) e Google OAuth. JWT strategy com role e id do usuário incluídos no token.",
+      "files": [
+        "src/lib/auth/config.ts",
+        "src/lib/auth/helpers.ts",
+        "src/app/api/auth/[...nextauth]/route.ts"
+      ],
+      "config_details": {
+        "providers": [
+          "CredentialsProvider: recebe email e password. Busca User por email no banco. Compara password com passwordHash via bcrypt.compare(). Retorna objeto { id, email, name, role, image } se válido, null se inválido.",
+          "GoogleProvider: clientId e clientSecret via env. PrismaAdapter cria Account automaticamente. No callback signIn, verificar se usuário já tem role — se não, atribuir CLIENT por padrão."
+        ],
+        "callbacks": {
+          "jwt": "Ao criar token (trigger='signIn'): incluir user.id e user.role no token. Em chamadas subsequentes: propagar token.id e token.role.",
+          "session": "Adicionar session.user.id = token.id e session.user.role = token.role. Isso torna role acessível em getServerSession()."
+        },
+        "adapter": "PrismaAdapter(prisma) — gerencia tabelas Account, Session, VerificationToken automaticamente.",
+        "session_strategy": "strategy: 'jwt' — não usa sessions no banco (mais performático para serverless Vercel).",
+        "pages": "pages: { signIn: '/login', error: '/login' } — redirecionar para login personalizado."
+      },
+      "helpers_file": {
+        "file": "src/lib/auth/helpers.ts",
+        "exports": [
+          "getServerSession() — wrapper que importa { auth } de '@/lib/auth/config' e retorna a session tipada",
+          "requireAuth(role?) — server-side: chama getServerSession(), redireciona para /login se não autenticado, redireciona para home do role se role não bate"
+        ]
+      }
+    },
+    {
+      "id": "s01-07",
+      "title": "Middleware de proteção de rotas",
+      "status": "done",
+      "details": "Middleware no nível do Next.js que intercepta rotas antes de renderizar. Verifica autenticação e redireciona conforme role.",
+      "file": "middleware.ts",
+      "logic": [
+        "Usar auth() do NextAuth como middleware diretamente (padrão NextAuth v5)",
+        "Verificar se request.auth existe (autenticado)",
+        "Mapa de rotas protegidas: '/agendar' e '/agendamentos' e '/perfil' → role CLIENT (ou autenticado)",
+        "'/agenda' e '/comissoes' e '/disponibilidade' → role BARBER",
+        "'/dashboard' e '/barbeiros' e '/servicos' e '/relatorios' → role ADMIN",
+        "Se não autenticado e tenta rota protegida → redirect('/login')",
+        "Se autenticado mas role errado → redirect para home do seu role"
+      ],
+      "matcher": "matcher: ['/((?!_next/static|_next/image|favicon.ico|api/auth|api/cron).*)']",
+      "role_home_map": {
+        "CLIENT": "/agendar",
+        "BARBER": "/agenda",
+        "ADMIN": "/dashboard"
+      }
+    },
+    {
+      "id": "s01-08",
+      "title": "Páginas de login e cadastro",
+      "status": "done",
+      "details": "Criar telas de autenticação com formulários validados por Zod, feedback visual e animação de entrada.",
+      "files": [
+        "src/app/(auth)/login/page.tsx",
+        "src/app/(auth)/login/LoginForm.tsx",
+        "src/app/(auth)/cadastro/page.tsx",
+        "src/app/(auth)/cadastro/RegisterForm.tsx",
+        "src/app/(auth)/layout.tsx",
+        "src/lib/validations/auth.ts"
+      ],
+      "login_form": {
+        "fields": ["email (obrigatório, email válido)", "password (obrigatório, mínimo 6 caracteres)"],
+        "validation": "zod schema LoginSchema em src/lib/validations/auth.ts",
+        "actions": ["submit com signIn('credentials', ...) do NextAuth", "botão Google OAuth com signIn('google')"],
+        "feedback": "loading state no botão durante submit, toast de erro se credenciais inválidas",
+        "redirect": "Após login bem-sucedido: callbackUrl ou home do role (CLIENT→/agendar, BARBER→/agenda, ADMIN→/dashboard)"
+      },
+      "register_form": {
+        "fields": ["name (obrigatório, 2-50 chars)", "email (obrigatório, email válido)", "phone (opcional, formato BR)", "password (mínimo 6 chars)", "confirmPassword (deve igualar password)"],
+        "validation": "zod schema RegisterSchema com .refine para password match",
+        "action": "POST /api/auth/register (criar User com role CLIENT, hash da senha)",
+        "api_route": "src/app/api/auth/register/route.ts — verificar se email já existe, criar user com bcrypt.hash(password, 10), retornar 201",
+        "feedback": "loading, erro de email duplicado com mensagem clara, sucesso redireciona para /login com query ?registered=true"
+      },
+      "auth_layout": "Fundo #1A1A1A, logo BARBERAG centralizado no topo, card branco com o formulário. Animação fade-in no card."
+    },
+    {
+      "id": "s01-09",
+      "title": "Layouts com guards de autenticação por route group",
+      "status": "done",
+      "details": "Cada route group tem seu layout.tsx que verifica sessão e role. Guards centralizados aqui — páginas individuais não fazem verificação.",
+      "files": [
+        "src/app/(client)/layout.tsx",
+        "src/app/(barber)/layout.tsx",
+        "src/app/(admin)/layout.tsx",
+        "src/components/navigation/ClientNav.tsx",
+        "src/components/navigation/BarberNav.tsx",
+        "src/components/navigation/AdminNav.tsx"
+      ],
+      "layout_pattern": "Cada layout: 1) chama requireAuth(role), 2) renderiza Navbar específica do role, 3) renderiza {children}",
+      "client_nav": "Links: Agendar, Meus Agendamentos, Meu Perfil. Avatar + nome do usuário. Botão Sair.",
+      "barber_nav": "Links: Agenda do Dia, Minhas Comissões, Disponibilidade. Badge com qtd de agendamentos de hoje.",
+      "admin_nav": "Links: Dashboard, Barbeiros, Serviços, Comissões, Relatórios. Logo BARBERAG na sidebar (desktop) ou header (mobile).",
+      "mobile_nav": "Bottom navigation bar em mobile para Client e Barber. Sidebar colapsável para Admin."
+    },
+    {
+      "id": "s01-10",
+      "title": "Variáveis de ambiente e configurações do projeto",
+      "status": "done",
+      "details": "Finalizar configurações de projeto: env vars, next.config.ts, .gitignore.",
+      "files": [
+        ".env.example",
+        ".env.local (não commitado)",
+        "next.config.ts",
+        ".gitignore"
+      ],
+      "env_example_content": "Documentar todas as 13 variáveis com comentário explicativo. Deixar valores em branco ou com placeholder visível (ex: 'your-secret-here').",
+      "next_config": {
+        "images_domains": ["res.cloudinary.com", "lh3.googleusercontent.com"],
+        "experimental": "serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs']"
+      },
+      "gitignore_additions": ".env.local, .env*.local, /prisma/dev.db"
+    }
+  ]
+}

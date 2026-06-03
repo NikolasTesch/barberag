@@ -1,0 +1,225 @@
+{
+  "id": "sprint-03",
+  "title": "Painel do Barbeiro — Agenda, Atendimento e Comissões",
+  "sprint": 3,
+  "status": "in-progress",
+  "priority": "critical",
+  "estimated_days": 4,
+  "depends_on": "sprint-02",
+  "description": "Implementar o painel exclusivo do barbeiro: agenda diária com linha de tempo ao vivo, fluxo de execução de atendimento (check-in → conclusão → registro de pagamento), cálculo automático de comissões via hierarquia de regras, e dashboard de comissões pessoais.",
+
+  "acceptance_criteria": [
+    "Barbeiro vê APENAS seus próprios agendamentos — query sempre filtra pelo barberId do usuário logado",
+    "Fluxo completo funciona: SCHEDULED → check-in (IN_PROGRESS) → concluir com pagamento (COMPLETED)",
+    "Comissão criada atomicamente na mesma transaction que muda status para COMPLETED",
+    "Cálculo de comissão respeita hierarquia: prioridade 4 > 3 > 2 > 1",
+    "Dashboard de comissões exibe: total pendente, total pago, detalhamento por atendimento",
+    "Barbeiro pode marcar dias de folga e bloqueios pontuais na tela de disponibilidade",
+    "Agenda do dia mostra linha de tempo com horário atual indicado"
+  ],
+
+  "steps": [
+    {
+      "id": "s03-01",
+      "title": "Lógica de cálculo de comissão (commission.ts)",
+      "status": "pending",
+      "details": "Função central de cálculo. Chamada dentro da transaction de conclusão do atendimento. Deve ser testada exaustivamente.",
+      "file": "src/lib/utils/commission.ts",
+      "function_signature": "calculateCommission(tx: PrismaTransactionClient, appointmentId: string): Promise<Commission>",
+      "algorithm": [
+        "1. Buscar Appointment com: totalPrice, barberId, AppointmentService(serviceId), paymentMethod",
+        "2. Buscar todas CommissionRules ordenadas por priority DESC",
+        "3. Aplicar regra de maior priority que bate com o contexto do appointment:",
+        "   - priority 4: rule.barberId == appointment.barberId AND rule.serviceId IN appointment.serviceIds AND rule.paymentMethod == appointment.paymentMethod",
+        "   - priority 3: rule.barberId == appointment.barberId AND rule.serviceId IN appointment.serviceIds AND rule.paymentMethod IS NULL",
+        "   - priority 2: rule.barberId == appointment.barberId AND rule.serviceId IS NULL AND rule.paymentMethod IS NULL",
+        "   - priority 1: rule.barberId IS NULL AND rule.serviceId IS NULL AND rule.paymentMethod IS NULL",
+        "4. Se nenhuma regra encontrada: usar rate padrão de 30% (fallback hardcoded)",
+        "5. Calcular amount = rule.rate * appointment.totalPrice (arredondar para 2 casas decimais)",
+        "6. Criar Commission: { appointmentId, barberId, amount, rate: rule.rate, status: PENDING }",
+        "7. Retornar o Commission criado"
+      ],
+      "notes": [
+        "Quando appointment tem múltiplos serviços: usar a regra de maior prioridade encontrada para qualquer um dos serviços",
+        "O tx (transaction client) é passado como parâmetro para garantir atomicidade com a mudança de status",
+        "Arredondamento: Math.round(rate * totalPrice * 100) / 100"
+      ],
+      "tests": {
+        "file": "src/lib/utils/__tests__/commission.test.ts",
+        "cases": [
+          "Aplica regra priority 4 (barbeiro+serviço+pagamento) quando todas as condições batem",
+          "Ignora regra priority 4 e usa priority 3 quando paymentMethod difere",
+          "Usa priority 2 (barbeiro geral) quando sem regra para o serviço específico",
+          "Usa priority 1 (barbearia padrão) quando barbeiro não tem regra",
+          "Usa 30% de fallback quando não há NENHUMA CommissionRule no banco",
+          "Valor calculado correto: rate 0.40 * totalPrice 55.00 = 22.00",
+          "Arredondamento correto: rate 0.33 * totalPrice 35.00 = 11.55"
+        ]
+      }
+    },
+    {
+      "id": "s03-02",
+      "title": "API Routes do barbeiro — agenda e atendimento",
+      "status": "pending",
+      "details": "Endpoints autenticados por role BARBER. CRÍTICO: toda query usa barberId derivado da session, nunca de parâmetro da URL (segurança).",
+      "files": [
+        "src/app/api/barber/appointments/route.ts",
+        "src/app/api/barber/appointments/[id]/checkin/route.ts",
+        "src/app/api/barber/appointments/[id]/complete/route.ts"
+      ],
+      "get_appointments": {
+        "path": "GET /api/barber/appointments?date=YYYY-MM-DD",
+        "auth": "Role BARBER. barberId obtido via session → buscar Barber WHERE userId == session.user.id",
+        "query": "Buscar Appointments WHERE barberId == barber.id AND DATE(scheduledAt) == date. Incluir: client (name, phone), AppointmentService com Service.name, Commission se existir.",
+        "sort": "Por scheduledAt ASC"
+      },
+      "post_checkin": {
+        "path": "POST /api/barber/appointments/[id]/checkin",
+        "validations": [
+          "Appointment.barberId == barber.id (segurança)",
+          "Appointment.status == SCHEDULED ou CONFIRMED (não pode fazer check-in em outros estados)"
+        ],
+        "action": "Atualizar status para IN_PROGRESS",
+        "error_400": "Se status inválido para transição: { error: 'Invalid status transition' }"
+      },
+      "post_complete": {
+        "path": "POST /api/barber/appointments/[id]/complete",
+        "body_schema": "CompleteAppointmentSchema: { paymentMethod: enum(CASH|PIX|DEBIT|CREDIT), serviceIds?: string[] (se barbeiro adicionou serviço extra), notes?: string }",
+        "validations": [
+          "Appointment.barberId == barber.id",
+          "Appointment.status == IN_PROGRESS"
+        ],
+        "transaction": [
+          "1. Se serviceIds foram alterados: recalcular totalPrice e totalDuration, atualizar AppointmentService records",
+          "2. Atualizar Appointment: status=COMPLETED, paymentMethod, endAt=agora",
+          "3. Chamar calculateCommission(tx, appointmentId) — criará o Commission record",
+          "4. Se falhar qualquer passo: rollback completo (status não muda)"
+        ],
+        "after_transaction": "Disparar link de avaliação (gerar reviewToken único, atualizar Appointment.reviewToken, enviar e-mail/WhatsApp com link /avaliar/[token])"
+      }
+    },
+    {
+      "id": "s03-03",
+      "title": "API Routes do barbeiro — comissões e disponibilidade",
+      "status": "pending",
+      "details": "Endpoints para dashboard de comissões e gestão de disponibilidade.",
+      "files": [
+        "src/app/api/barber/commissions/route.ts",
+        "src/app/api/barber/availability/route.ts"
+      ],
+      "get_commissions": {
+        "path": "GET /api/barber/commissions?period=today|week|month|custom&from=&to=",
+        "returns": "Array de Commission com: appointment (date, client.name, services names, paymentMethod), amount, rate, status, paidAt",
+        "aggregates": "Incluir summary: { totalPending: number, totalPaid: number, totalAll: number }"
+      },
+      "availability_routes": {
+        "get": "GET /api/barber/availability — retorna WorkingHours e BlockedSlots do barbeiro logado",
+        "patch": "PATCH /api/barber/availability — body: { workingHours: WorkingHoursInput[], blockedSlots: BlockedSlotInput[] }. Upsert WorkingHours (delete + create para o barbeiro). Criar BlockedSlots novos."
+      }
+    },
+    {
+      "id": "s03-04",
+      "title": "Agenda do dia — DailySchedule (/agenda)",
+      "status": "pending",
+      "details": "Tela principal do barbeiro. Lista cronológica com linha de tempo ao vivo e ações por status.",
+      "files": [
+        "src/app/(barber)/agenda/page.tsx",
+        "src/components/barber/DailySchedule.tsx",
+        "src/components/barber/AppointmentRow.tsx",
+        "src/components/barber/CurrentTimeLine.tsx"
+      ],
+      "page_layout": [
+        "Header: data de hoje, setas < > para navegar entre dias, total de agendamentos do dia",
+        "Lista vertical de AppointmentRow ordenada por horário",
+        "CurrentTimeLine: linha horizontal que indica o horário atual, posicionada relativamente na lista",
+        "Empty state: 'Nenhum agendamento para hoje. Aproveite!' com ícone de tesoura"
+      ],
+      "appointment_row": {
+        "left_column": "Horário (ex: '09:30') e duração (ex: '30 min')",
+        "center": "Nome do cliente, lista de serviços (chips compactos), StatusBadge",
+        "right_column": "Ação contextual por status (ver abaixo)",
+        "visual_diff": "Row com status COMPLETED: opacidade reduzida (opacity-60). IN_PROGRESS: borda lateral accent (#D4830A)."
+      },
+      "action_buttons": {
+        "SCHEDULED": "Botão 'Check-in' — verde, ícone de check",
+        "IN_PROGRESS": "Botão 'Concluir' — accent, ícone de flag. Abre modal CompleteModal.",
+        "COMPLETED": "Badge 'Concluído' + valor da comissão (ex: 'R$ 22,00')",
+        "NO_SHOW": "Badge 'Não compareceu'",
+        "CANCELLED": "Badge 'Cancelado'"
+      },
+      "current_time_line": {
+        "component": "CurrentTimeLine.tsx — linha vermelha fina com círculo na ponta",
+        "position": "Calcular % do dia decorrido com base em startTime do WorkingHours e hora atual",
+        "update": "useEffect com setInterval de 60s para reposicionar a linha"
+      },
+      "data_refresh": "Revalidar lista a cada 2 minutos (polling simples) para pegar check-ins de outros dispositivos ou admin"
+    },
+    {
+      "id": "s03-05",
+      "title": "Modal de conclusão de atendimento",
+      "status": "pending",
+      "details": "Dialog completo para registrar forma de pagamento, ajustar serviços realizados e confirmar conclusão.",
+      "file": "src/components/barber/CompleteModal.tsx",
+      "dialog_content": [
+        "Seção 'Serviços realizados': checklist dos serviços agendados (pré-marcados). Opção de adicionar serviços extras via select.",
+        "Seção 'Forma de pagamento': RadioGroup com: Pix (ícone), Dinheiro (ícone), Cartão Débito (ícone), Cartão Crédito (ícone)",
+        "Seção 'Observações': textarea opcional (ex: 'Cliente pediu para dar mais volume no friso')",
+        "Footer: Total atualizado em tempo real, botão 'Confirmar' (accent) e 'Cancelar'"
+      ],
+      "validation": "Zod: paymentMethod obrigatório. serviceIds: mínimo 1.",
+      "loading_state": "Botão 'Confirmar' vira spinner durante request. Não fechar modal enquanto carrega.",
+      "on_success": [
+        "Fechar modal",
+        "Atualizar AppointmentRow para mostrar COMPLETED com valor da comissão",
+        "Toast: 'Atendimento concluído! Comissão de R$ X,XX gerada.'",
+        "Animação no row: fade da borda accent para opacidade reduzida"
+      ]
+    },
+    {
+      "id": "s03-06",
+      "title": "Dashboard de comissões do barbeiro (/comissoes)",
+      "status": "pending",
+      "details": "Tela financeira do barbeiro. Resumo por período e histórico detalhado.",
+      "files": [
+        "src/app/(barber)/comissoes/page.tsx",
+        "src/components/barber/CommissionSummary.tsx",
+        "src/components/barber/CommissionTable.tsx"
+      ],
+      "summary_cards": [
+        "Card 'Hoje': total ganho hoje (PENDING + PAID somados)",
+        "Card 'Esta semana': total da semana",
+        "Card 'Este mês': total do mês. Badge adicional com valor pendente em warning e valor pago em success."
+      ],
+      "period_filter": "Select ou tabs: Hoje / Esta semana / Este mês. Muda os cards E a tabela abaixo.",
+      "commission_table": {
+        "columns": "Data | Cliente | Serviços | Pagamento | % Comissão | Valor | Status",
+        "status_badge": "PENDING: warning badge 'A receber'. PAID: success badge 'Pago em DD/MM/AAAA'",
+        "sort": "Por data DESC (mais recente primeiro)",
+        "empty_state": "Mensagem 'Nenhuma comissão no período selecionado'"
+      },
+      "pagination": "Limitar a 20 itens por página. Paginação simples (anterior/próximo)."
+    },
+    {
+      "id": "s03-07",
+      "title": "Gestão de disponibilidade (/disponibilidade)",
+      "status": "pending",
+      "details": "Barbeiro configura horário padrão por dia da semana e adiciona bloqueios pontuais.",
+      "files": [
+        "src/app/(barber)/disponibilidade/page.tsx",
+        "src/components/barber/AvailabilityEditor.tsx",
+        "src/components/barber/BlockedSlotForm.tsx"
+      ],
+      "working_hours_section": {
+        "ui": "7 linhas (Dom a Sáb). Cada linha: toggle on/off (Switch shadcn), campos TimeInput de início e fim (visíveis apenas quando toggle on).",
+        "default_values": "Pré-preencher com os WorkingHours atuais do barbeiro (ou padrão da barbearia se não tiver customizado)",
+        "save": "Botão 'Salvar horários' → PATCH /api/barber/availability. Toast de confirmação."
+      },
+      "blocked_slots_section": {
+        "title": "Bloqueios e Folgas",
+        "list": "Lista de BlockedSlots futuros do barbeiro com: data, período, motivo, botão remover",
+        "add_form": "Data (DatePicker), Dia inteiro (toggle) ou Horário específico (campos início/fim), Motivo (opcional). Botão 'Adicionar Bloqueio'.",
+        "validation": "Data não pode ser no passado. Horário fim deve ser após início."
+      }
+    }
+  ]
+}

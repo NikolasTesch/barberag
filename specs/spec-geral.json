@@ -1,0 +1,382 @@
+{
+  "id": "spec-geral",
+  "title": "BARBERAG — Especificação Geral do Projeto",
+  "version": "1.0",
+  "created_at": "2026-06-01",
+  "status": "reference",
+  "description": "Documento mestre que define a arquitetura, convenções, padrões transversais e mapa de dependências de todos os sprints do BARBERAG. Toda spec de sprint deve ser lida em conjunto com este documento.",
+
+  "project_identity": {
+    "name": "BARBERAG | Authentic Barbershop",
+    "purpose": "Plataforma web de gestão completa para barbearias: agendamento self-service para clientes, painel operacional para barbeiros e dashboard executivo para o dono.",
+    "profiles": ["CLIENT", "BARBER", "ADMIN"],
+    "primary_constraint": "Nenhum agendamento pode conflitar. Anti double-booking é o requisito de integridade mais crítico do sistema.",
+    "business_rules_source": "PRD.md — seção 7 (RN-01 a RN-08)"
+  },
+
+  "architecture": {
+    "pattern": "Monolito modular — Next.js App Router com API Routes no mesmo repositório",
+    "rationale": "MVP em equipe pequena. Sem overhead de microsserviços. Vercel cuida do deploy e scaling serverless.",
+    "layers": [
+      {
+        "name": "Presentation",
+        "path": "src/app/(public|auth|client|barber|admin)/",
+        "rule": "Server Components por padrão. 'use client' somente para hooks, eventos ou Framer Motion."
+      },
+      {
+        "name": "API",
+        "path": "src/app/api/",
+        "rule": "API Routes com padrão fixo: 1) Auth check, 2) Zod parse, 3) Business logic, 4) Typed response. Nunca misturar lógica de negócio na Route handler."
+      },
+      {
+        "name": "Business Logic",
+        "path": "src/lib/utils/",
+        "rule": "Funções puras e testáveis. slots.ts e commission.ts são os núcleos críticos — 100% cobertos por testes."
+      },
+      {
+        "name": "Data Access",
+        "path": "src/lib/prisma/",
+        "rule": "Singleton do PrismaClient. Queries críticas em $transaction(). Nunca expor passwordHash em selects de API."
+      },
+      {
+        "name": "Notifications",
+        "path": "src/lib/notifications/",
+        "rule": "Disparos sempre assíncronos (não bloqueiam a resposta HTTP). WhatsApp via Evolution API, e-mail via Resend."
+      }
+    ],
+    "data_flow": "Client (Browser) → API Route → lib/utils → Prisma → NeonDB (PostgreSQL)"
+  },
+
+  "tech_stack": {
+    "framework": "Next.js 14 — App Router, TypeScript strict",
+    "database": "PostgreSQL via NeonDB (serverless). Duas connection strings: DATABASE_URL (pooler, para runtime) e DATABASE_URL_UNPOOLED (direto, para migrations).",
+    "orm": "Prisma 5.x — Migrate + Client. Seed com @prisma/client e ts-node.",
+    "auth": "NextAuth.js v5 (beta) — CredentialsProvider (bcrypt) + GoogleProvider. JWT strategy. PrismaAdapter.",
+    "validation": "Zod 3.x — schemas em src/lib/validations/. Mesmos schemas no frontend (zodResolver) e backend (safeParse).",
+    "styling": "Tailwind CSS 3.x + shadcn/ui (Radix primitives). Tokens de cor em tailwind.config.ts.",
+    "animations": "Framer Motion 11.x — fade/slideY para páginas, stagger para listas, scale para ações.",
+    "state": "Zustand 4.x — somente bookingStore (fluxo de agendamento) e uiStore (modais globais). Dados remotos: fetch + SWR ou Server Components.",
+    "charts": "Recharts 2.x — LineChart (faturamento), PieChart (serviços), BarChart (barbeiros).",
+    "notifications_email": "Resend — templates React Email.",
+    "notifications_whatsapp": "Evolution API — mensagens de texto simples.",
+    "storage": "Cloudinary — upload de fotos de barbeiros e galeria. Signed uploads via backend.",
+    "cron": "Vercel Cron Jobs — vercel.json com schedules. Routes protegidas por CRON_SECRET header.",
+    "deploy": "Vercel — preview por branch, produção na main."
+  },
+
+  "environment_variables": {
+    "required": [
+      { "key": "DATABASE_URL", "description": "NeonDB pooler connection string — usado em runtime pelo PrismaClient" },
+      { "key": "DATABASE_URL_UNPOOLED", "description": "NeonDB direct connection — usado apenas em migrations" },
+      { "key": "NEXTAUTH_SECRET", "description": "Secret para assinar tokens JWT (openssl rand -base64 32)" },
+      { "key": "NEXTAUTH_URL", "description": "URL base da aplicação (http://localhost:3000 em dev)" },
+      { "key": "GOOGLE_CLIENT_ID", "description": "OAuth Google — Google Cloud Console" },
+      { "key": "GOOGLE_CLIENT_SECRET", "description": "OAuth Google — Google Cloud Console" },
+      { "key": "CLOUDINARY_CLOUD_NAME", "description": "Nome do cloud Cloudinary" },
+      { "key": "CLOUDINARY_API_KEY", "description": "API Key Cloudinary" },
+      { "key": "CLOUDINARY_API_SECRET", "description": "API Secret Cloudinary — NUNCA expor no cliente" },
+      { "key": "RESEND_API_KEY", "description": "Chave da API Resend para e-mails transacionais" },
+      { "key": "EVOLUTION_API_URL", "description": "URL base da Evolution API para WhatsApp" },
+      { "key": "EVOLUTION_API_KEY", "description": "Chave de autenticação da Evolution API" },
+      { "key": "CRON_SECRET", "description": "Token para autenticar chamadas do Vercel Cron (openssl rand -hex 32)" }
+    ],
+    "file": ".env.local (desenvolvimento) — nunca commitado. .env.example documenta todas as keys sem valores."
+  },
+
+  "database_schema": {
+    "overview": "PostgreSQL relacional. Todas as entidades com UUID como PK. Soft delete via isActive/deletedAt onde aplicável.",
+    "models": {
+      "User": {
+        "fields": "id(uuid), name, email(unique), emailVerified, phone, passwordHash, role(CLIENT|BARBER|ADMIN), image, createdAt, updatedAt",
+        "notes": "Tabela central de autenticação. passwordHash é null para usuários OAuth. Nunca retornar passwordHash em API responses.",
+        "indexes": ["email", "role"]
+      },
+      "Account": {
+        "fields": "id, userId(FK User), type, provider, providerAccountId, ...",
+        "notes": "Tabela padrão NextAuth para OAuth providers. Gerenciada pelo PrismaAdapter."
+      },
+      "Barber": {
+        "fields": "id(uuid), userId(FK User, unique), bio, specialties(String[]), commissionRate(Decimal, default 0.30), isActive(default true), createdAt, updatedAt",
+        "notes": "Perfil do barbeiro. 1:1 com User. commissionRate é o fallback da hierarquia de comissão.",
+        "relations": ["User(1:1)", "BarberService(1:N)", "WorkingHours(1:N)", "BlockedSlot(1:N)", "Appointment(1:N)", "CommissionRule(1:N)", "Commission(1:N)"]
+      },
+      "Service": {
+        "fields": "id(uuid), name, description, durationMinutes(Int), basePrice(Decimal), category(String), isActive(default true), createdAt",
+        "notes": "Serviços da barbearia. category: 'cabelo', 'barba', 'sobrancelha', 'combo', 'tratamento'.",
+        "relations": ["BarberService(1:N)", "AppointmentService(1:N)", "CommissionRule(1:N)"]
+      },
+      "BarberService": {
+        "fields": "barberId(FK), serviceId(FK), customPrice(Decimal?, nullable)",
+        "notes": "Tabela pivô. customPrice substitui basePrice do Service para aquele barbeiro específico. PK composta (barberId, serviceId)."
+      },
+      "WorkingHours": {
+        "fields": "id(uuid), barberId(FK?, nullable para horário da barbearia), dayOfWeek(0=Dom..6=Sáb), startTime(String 'HH:mm'), endTime(String 'HH:mm'), isActive(default true)",
+        "notes": "barberId null = horário padrão da barbearia. barberId preenchido = horário individual do barbeiro (sobrepõe o padrão)."
+      },
+      "BlockedSlot": {
+        "fields": "id(uuid), barberId(FK?, nullable para bloqueio geral da barbearia), date(DateTime), startTime(String 'HH:mm'), endTime(String 'HH:mm'), reason(String?), createdAt",
+        "notes": "Bloqueios pontuais: feriados (barberId null), folgas individuais (barberId preenchido)."
+      },
+      "Appointment": {
+        "fields": "id(uuid), clientId(FK User), barberId(FK Barber), status(SCHEDULED|CONFIRMED|IN_PROGRESS|COMPLETED|NO_SHOW|CANCELLED), scheduledAt(DateTime), endAt(DateTime), totalDuration(Int min), totalPrice(Decimal), paymentMethod(CASH|PIX|DEBIT|CREDIT, nullable), notes(String?), cancelledAt(DateTime?), cancelReason(String?), reviewToken(String?, unique), createdAt, updatedAt",
+        "notes": "Core da plataforma. scheduledAt + totalDuration = endAt. reviewToken gerado na conclusão para avaliação sem login.",
+        "indexes": ["barberId + scheduledAt (para queries de conflito)", "clientId", "status", "scheduledAt"]
+      },
+      "AppointmentService": {
+        "fields": "appointmentId(FK), serviceId(FK), price(Decimal), duration(Int min)",
+        "notes": "Snapshot do preço e duração no momento do agendamento. PK composta."
+      },
+      "CommissionRule": {
+        "fields": "id(uuid), barberId(FK?, nullable), serviceId(FK?, nullable), paymentMethod(nullable), rate(Decimal 0.0-1.0), priority(Int), createdAt",
+        "notes": "Hierarquia por priority: 4=barbeiro+serviço+pagamento, 3=barbeiro+serviço, 2=barbeiro, 1=padrão barbearia. Apenas uma regra de cada combinação deve existir."
+      },
+      "Commission": {
+        "fields": "id(uuid), appointmentId(FK Appointment, unique), barberId(FK Barber), amount(Decimal), rate(Decimal), status(PENDING|PAID), paidAt(DateTime?), paidBy(FK User?, admin que pagou), createdAt",
+        "notes": "Criado atomicamente com a transição COMPLETED. Um registro por atendimento concluído."
+      },
+      "Review": {
+        "fields": "id(uuid), appointmentId(FK Appointment, unique), clientId(FK User), barberId(FK Barber), rating(Int 1-5), comment(String?), isPublished(default false), createdAt",
+        "notes": "Só pode ser criado se Appointment.status == COMPLETED e createdAt < 72h após scheduledAt. isPublished controlado pelo admin."
+      },
+      "BarbershopConfig": {
+        "fields": "id(uuid), name, logoUrl, address, phone, instagram, whatsapp, timezone(default 'America/Sao_Paulo'), cancelPolicy(Int min, default 120), updatedAt",
+        "notes": "Singleton — sempre há apenas 1 registro. cancelPolicy em minutos (padrão 2h)."
+      },
+      "GalleryImage": {
+        "fields": "id(uuid), url, alt, isPublished(default true), order(Int), uploadedAt",
+        "notes": "Fotos gerenciadas pelo admin para a landing page."
+      }
+    }
+  },
+
+  "auth_and_rbac": {
+    "strategy": "JWT via NextAuth v5. Token inclui: id, email, role, name, image.",
+    "session_callback": "Adicionar user.id e user.role ao objeto session para uso em Server Components e API Routes.",
+    "middleware": {
+      "file": "middleware.ts (raiz do projeto)",
+      "logic": "Verificar autenticação e role antes de servir rotas protegidas. Usar matcher para excluir _next, api/auth, assets públicos.",
+      "redirects": {
+        "unauthenticated": "/login",
+        "CLIENT tentando barber/*": "/agendar",
+        "CLIENT tentando admin/*": "/agendar",
+        "BARBER tentando client/*": "/agenda",
+        "BARBER tentando admin/*": "/agenda",
+        "ADMIN tentando client/*": "/dashboard",
+        "ADMIN tentando barber/*": "/dashboard"
+      }
+    },
+    "server_component_auth": "getServerSession() de src/lib/auth/helpers.ts. Redireciona com redirect() do next/navigation.",
+    "api_route_auth": "getServerSession() no início de CADA handler. Retorna 401 se não autenticado. Verifica role e retorna 403 se não autorizado."
+  },
+
+  "api_route_pattern": {
+    "description": "Padrão obrigatório para TODA API Route do projeto",
+    "template": [
+      "1. const session = await getServerSession()",
+      "   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })",
+      "2. Verificar role se necessário:",
+      "   if (session.user.role !== 'ADMIN') return Response.json({ error: 'Forbidden' }, { status: 403 })",
+      "3. const body = await req.json() — somente em POST/PATCH/PUT",
+      "   const result = SomeSchema.safeParse(body)",
+      "   if (!result.success) return Response.json({ error: result.error.flatten() }, { status: 400 })",
+      "4. Lógica de negócio (chamar util functions, Prisma queries)",
+      "5. return Response.json(data, { status: 200|201|204 })"
+    ],
+    "error_responses": {
+      "400": "Validação falhou — { error: ZodFlattenedError }",
+      "401": "Não autenticado — { error: 'Unauthorized' }",
+      "403": "Sem permissão — { error: 'Forbidden' }",
+      "404": "Recurso não encontrado — { error: 'Not found' }",
+      "409": "Conflito — { error: 'Slot unavailable' } (double-booking)",
+      "500": "Erro interno — { error: 'Internal server error' } — logar o erro real no servidor"
+    }
+  },
+
+  "prisma_patterns": {
+    "client_singleton": {
+      "file": "src/lib/prisma/client.ts",
+      "pattern": "Verificar globalThis.__prisma para evitar múltiplas instâncias em hot-reload do dev."
+    },
+    "transaction_anti_double_booking": {
+      "description": "Ao criar agendamento, usar $transaction com isolationLevel Serializable para garantir atomicidade",
+      "steps": [
+        "Dentro da transaction: buscar appointments existentes do barbeiro no período (scheduledAt até endAt)",
+        "Se overlap encontrado: throw com código 'SLOT_CONFLICT'",
+        "Se livre: criar Appointment + AppointmentService records",
+        "Capturar erro fora da transaction: se 'SLOT_CONFLICT', retornar 409"
+      ]
+    },
+    "select_safe": "Em qualquer query que retorne User para o cliente, usar select explícito excluindo passwordHash e emailVerified.",
+    "soft_delete": "Barbeiros e Serviços usam isActive: false ao invés de delete. Queries de leitura pública sempre filtram isActive: true."
+  },
+
+  "design_system": {
+    "colors": {
+      "primary": "#1A1A1A (fundo escuro, headers)",
+      "accent": "#D4830A (CTAs, destaques, ícones, badges quente)",
+      "background": "#FFFFFF (fundo interno das telas)",
+      "muted": "#F5F5F5 (cards, inputs, backgrounds secundários)",
+      "success": "#27AE60 (concluído, comissão paga, confirmação)",
+      "warning": "#F39C12 (pendente, atenção)",
+      "error": "#C0392B (cancelado, no-show, erro)",
+      "textPrimary": "#1A1A1A",
+      "textMuted": "#666666"
+    },
+    "fonts": {
+      "body": "Inter (400, 500, 600, 700) — todas as telas internas",
+      "display": "Playfair Display (700) — apenas landing page, títulos hero"
+    },
+    "tailwind_tokens": "Definidos em tailwind.config.ts como extend.colors.primary, extend.colors.accent, etc. Nunca usar hex inline.",
+    "component_library": "shadcn/ui — instalar componentes individualmente. Customizar via CSS variables no globals.css.",
+    "animation_rules": {
+      "page_enter": "fade + slideY(20px) com duration 0.3s",
+      "list_stagger": "staggerChildren 0.05s no container",
+      "action_feedback": "scale(0.97) no press, scale(1.02) no hover para botões de ação",
+      "scroll_reveal": "whileInView com once:true para seções da landing page",
+      "no_animation_on_error": "States de erro e loading devem ser instantâneos — sem animação que atrase feedback"
+    }
+  },
+
+  "shared_components": {
+    "description": "Componentes transversais usados em múltiplos sprints. Criar em src/components/shared/.",
+    "list": [
+      {
+        "name": "StatusBadge",
+        "props": "status: AppointmentStatus",
+        "logic": "Mapeia status → cor + label. SCHEDULED=muted, CONFIRMED=accent, IN_PROGRESS=warning, COMPLETED=success, NO_SHOW=error, CANCELLED=muted+strikethrough"
+      },
+      {
+        "name": "AppointmentCard",
+        "props": "appointment: AppointmentWithDetails, actions?: ReactNode",
+        "logic": "Card com: avatar do barbeiro, serviços (lista), data/hora, duração, preço, StatusBadge, slot para actions"
+      },
+      {
+        "name": "LoadingSkeleton",
+        "variants": "card, row, kpi — skeletons animados via Tailwind animate-pulse"
+      },
+      {
+        "name": "ConfirmDialog",
+        "props": "title, description, confirmLabel, onConfirm, destructive?: boolean",
+        "logic": "shadcn AlertDialog. Botão confirm em vermelho se destructive=true"
+      },
+      {
+        "name": "EmptyState",
+        "props": "icon, title, description, action?: ReactNode",
+        "logic": "Estado vazio padronizado. Usado em lista sem agendamentos, comissões zeradas, etc."
+      }
+    ]
+  },
+
+  "testing_strategy": {
+    "framework": "Jest + @testing-library/react",
+    "unit_tests_required": [
+      {
+        "file": "src/lib/utils/slots.ts",
+        "cases": [
+          "Retorna todos os slots do dia quando não há agendamentos",
+          "Remove slot quando há agendamento naquele horário",
+          "Remove slots parcialmente ocupados pela duração do serviço",
+          "Retorna array vazio em dia sem WorkingHours",
+          "Respeita BlockedSlots do barbeiro",
+          "Respeita BlockedSlots gerais da barbearia (barberId null)",
+          "Não retorna slots antes de startTime ou após endTime - serviceDuration"
+        ]
+      },
+      {
+        "file": "src/lib/utils/commission.ts",
+        "cases": [
+          "Aplica regra barbeiro+serviço+pagamento (priority 4) quando todas as condições batem",
+          "Fallback para barbeiro+serviço (priority 3) quando pagamento não tem regra",
+          "Fallback para barbeiro geral (priority 2) quando serviço não tem regra",
+          "Fallback para padrão da barbearia (priority 1) quando barbeiro não tem regra",
+          "Valor calculado correto: rate * appointment.totalPrice",
+          "Erro quando Appointment não encontrado"
+        ]
+      },
+      {
+        "file": "src/lib/validations/appointment.ts",
+        "cases": [
+          "Schema aceita payload válido",
+          "Schema rejeita data no passado",
+          "Schema rejeita array de serviços vazio"
+        ]
+      }
+    ],
+    "integration_tests": "Testar anti-double-booking com dois requests simultâneos usando Promise.all. Verificar que apenas 1 retorna 201 e o outro retorna 409.",
+    "e2e": "Fora do escopo do MVP. Documentar fluxos para teste manual.",
+    "test_location": "src/lib/utils/__tests__/ e src/lib/validations/__tests__/"
+  },
+
+  "notifications_templates": {
+    "email_confirmation": {
+      "subject": "Agendamento confirmado — BARBERAG",
+      "content": "Nome do cliente, barbeiro, lista de serviços, data/hora, duração total, botão 'Cancelar agendamento' (link direto)"
+    },
+    "email_reminder_24h": {
+      "subject": "Lembrete: seu agendamento é amanhã — BARBERAG",
+      "content": "Data/hora, barbeiro, serviços, endereço, botão 'Gerenciar agendamento'"
+    },
+    "email_reminder_2h": {
+      "subject": "Seu agendamento começa em 2 horas — BARBERAG",
+      "content": "Horário exato, barbeiro, endereço com link do Maps"
+    },
+    "email_review": {
+      "subject": "Como foi sua visita? Avalie seu atendimento",
+      "content": "Nome do barbeiro, serviço realizado, link único /avaliar/[token] (válido por 72h)"
+    },
+    "whatsapp_confirmation": "✂️ Olá {nome}! Seu agendamento na BARBERAG está confirmado.\n📅 {data} às {hora}\n💈 Barbeiro: {barbeiro}\n✅ Serviços: {serviços}\n\nPara cancelar ou remarcar acesse: {link}",
+    "whatsapp_reminder_24h": "🔔 Olá {nome}! Lembrando do seu agendamento amanhã às {hora} com {barbeiro} na BARBERAG.",
+    "whatsapp_reminder_2h": "⏰ Olá {nome}! Seu horário com {barbeiro} começa em 2 horas ({hora}). Te esperamos! 💈"
+  },
+
+  "sprint_dependency_map": {
+    "sprint-01": { "depends_on": null, "unlocks": ["sprint-02"] },
+    "sprint-02": { "depends_on": "sprint-01", "unlocks": ["sprint-03"] },
+    "sprint-03": { "depends_on": "sprint-02", "unlocks": ["sprint-04"] },
+    "sprint-04": { "depends_on": "sprint-03", "unlocks": ["sprint-05"] },
+    "sprint-05": { "depends_on": "sprint-04", "unlocks": null }
+  },
+
+  "deployment": {
+    "platform": "Vercel",
+    "branch_strategy": "main = produção. feature/* = preview deployments automáticos.",
+    "env_config": "Variáveis de ambiente configuradas na dashboard do Vercel por ambiente (production / preview).",
+    "neondb_branches": "Usar NeonDB branching: branch 'main' para produção, branch 'dev' para desenvolvimento.",
+    "cron_config": {
+      "file": "vercel.json",
+      "jobs": [
+        { "path": "/api/cron/reminders-24h", "schedule": "0 * * * *", "description": "A cada hora, verifica agendamentos em 24h" },
+        { "path": "/api/cron/reminders-2h", "schedule": "*/30 * * * *", "description": "A cada 30 min, verifica agendamentos em 2h" }
+      ]
+    },
+    "checklist_pre_deploy": [
+      "npx tsc --noEmit — sem erros de TypeScript",
+      "npm run build — build local sem erros",
+      "npx prisma migrate deploy — migrations aplicadas no banco de produção",
+      "Variáveis de ambiente verificadas na Vercel dashboard",
+      "CRON_SECRET configurado"
+    ]
+  },
+
+  "definition_of_done_global": {
+    "code_quality": [
+      "Sem erros TypeScript (strict: true)",
+      "Sem console.log de debug",
+      "Sem any explícito",
+      "Sem valores hex inline (usar tokens Tailwind)"
+    ],
+    "security": [
+      "Credenciais apenas em process.env",
+      "passwordHash nunca retornado em API responses",
+      "Toda API Route verifica autenticação antes de qualquer lógica"
+    ],
+    "ux": [
+      "Loading state (skeleton ou spinner) em toda interação com API",
+      "Error state com mensagem clara ao usuário",
+      "Empty state quando lista não tem itens",
+      "Confirmação visual em toda ação destrutiva (cancelar, desativar)"
+    ],
+    "responsiveness": "Testado em 375px (mobile) e 1280px (desktop) sem quebras de layout",
+    "tests": "Funções de negócio críticas (slots.ts, commission.ts) com testes unitários cobrindo casos de sucesso e falha"
+  }
+}

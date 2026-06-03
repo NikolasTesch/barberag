@@ -1,0 +1,317 @@
+{
+  "id": "sprint-02",
+  "title": "Fluxo de Agendamento — Core do Produto",
+  "sprint": 2,
+  "status": "in-progress",
+  "priority": "critical",
+  "estimated_days": 5,
+  "depends_on": "sprint-01",
+  "status_note": "Todos os 11 steps implementados em código: slots.ts (+10 testes vitest passando), validations/appointment.ts, email.ts (Resend), POST/GET /api/appointments com transaction Serializable (anti-double-booking RN-01), PATCH cancel/reschedule, /api/barbers e /availability, bookingStore (Zustand sem persist), e os 4 passos do fluxo + Meus Agendamentos com diálogo de cancelamento. tsc --noEmit limpo. BLOQUEADO: verificação dos acceptance_criteria (double-booking concorrente, slots, e-mail) exige NeonDB ativo — mesmo bloqueio do sprint-01 s01-05. Após .env.local + migration/seed, rodar npm run dev e validar o fluxo ponta a ponta.",
+  "description": "Implementar o fluxo completo de agendamento do cliente em 4 passos (serviços → barbeiro → horário → confirmar), a lógica de geração de slots disponíveis, o bloqueio de conflitos via transaction Prisma, a gestão dos agendamentos (cancelar/reagendar) e o envio de e-mail de confirmação.",
+
+  "acceptance_criteria": [
+    "Cliente completa agendamento em 4 passos sem erro do início ao fim",
+    "Dois clientes tentando o mesmo slot simultâneamente: apenas 1 recebe 201, o outro recebe 409",
+    "Slots bloqueados por outros agendamentos não aparecem no calendário",
+    "Slots fora do horário de funcionamento não aparecem",
+    "E-mail de confirmação disparado em ≤ 30s após agendamento criado",
+    "Cliente consegue cancelar seu agendamento (slot liberado imediatamente)",
+    "Cliente consegue reagendar a partir de 'Meus Agendamentos'",
+    "Tela de agendamento funciona em 375px (mobile) sem quebras"
+  ],
+
+  "steps": [
+    {
+      "id": "s02-01",
+      "title": "Lógica de geração de slots disponíveis (slots.ts)",
+      "status": "done",
+      "details": "Criar a função central getAvailableSlots. É a função mais crítica do sistema além de commission.ts — deve ter testes unitários completos.",
+      "file": "src/lib/utils/slots.ts",
+      "function_signature": "getAvailableSlots(barberId: string, date: Date, serviceDurationMinutes: number): Promise<string[]>",
+      "algorithm": [
+        "1. Determinar dayOfWeek da date (0=Dom...6=Sáb)",
+        "2. Buscar WorkingHours: primeiro tenta barberId específico, fallback para barberId null (horário geral da barbearia). Se não encontrar nenhum ou isActive=false → retornar []",
+        "3. Buscar Appointments do barbeiro naquela data com status != CANCELLED. Cada appointment ocupa [scheduledAt, endAt].",
+        "4. Buscar BlockedSlots do barbeiro naquela data (barberId ou null). Cada blockedSlot ocupa [startTime, endTime].",
+        "5. Gerar todos os slots de 15 em 15 minutos entre WorkingHours.startTime e WorkingHours.endTime - serviceDurationMinutes.",
+        "6. Para cada slot candidato [slotStart, slotStart + serviceDurationMinutes]: verificar se há overlap com qualquer Appointment ou BlockedSlot ocupado.",
+        "7. Retornar array de strings 'HH:mm' dos slots livres."
+      ],
+      "overlap_check": "Overlap existe quando: slotStart < occupiedEnd AND slotEnd > occupiedStart. Usar comparação de minutos do dia (hora*60 + minuto).",
+      "return_format": "Array de strings no formato 'HH:mm', ex: ['09:00', '09:15', '09:30', ...]",
+      "tests": {
+        "file": "src/lib/utils/__tests__/slots.test.ts",
+        "cases": [
+          "Retorna slots de 09h às 18h30 (duração 30min) quando não há agendamentos",
+          "Slot 09:00 bloqueado quando há agendamento das 09:00 às 09:30",
+          "Slot 08:45 bloqueado quando duração do serviço é 30min e agendamento começa às 09:00 (overlap parcial)",
+          "Retorna [] quando não há WorkingHours para o dia",
+          "Retorna [] quando WorkingHours.isActive = false",
+          "Respeita BlockedSlot específico do barbeiro",
+          "Respeita BlockedSlot geral (barberId = null)",
+          "Último slot retornado é startTime + (endTime - serviceDuration)"
+        ]
+      }
+    },
+    {
+      "id": "s02-02",
+      "title": "Zod schemas de agendamento",
+      "status": "done",
+      "details": "Schemas compartilhados entre API e frontend para validação consistente.",
+      "file": "src/lib/validations/appointment.ts",
+      "schemas": {
+        "CreateAppointmentSchema": {
+          "fields": {
+            "barberId": "string uuid obrigatório",
+            "scheduledAt": "string ISO date, transformada para Date, refine: deve ser futura (> agora)",
+            "services": "array de { serviceId: string uuid }, mínimo 1 elemento"
+          }
+        },
+        "CancelAppointmentSchema": {
+          "fields": {
+            "reason": "string opcional, máximo 200 chars"
+          }
+        },
+        "RescheduleAppointmentSchema": {
+          "fields": {
+            "scheduledAt": "string ISO date, futura",
+            "barberId": "string uuid (pode trocar de barbeiro ao reagendar)"
+          }
+        }
+      }
+    },
+    {
+      "id": "s02-03",
+      "title": "API Route — POST /api/appointments (anti-double-booking)",
+      "status": "done",
+      "details": "Endpoint crítico de criação de agendamento. Usa Prisma transaction com Serializable para garantir que dois clientes não reservem o mesmo slot.",
+      "file": "src/app/api/appointments/route.ts",
+      "post_handler_logic": [
+        "1. Auth check: session obrigatória, role CLIENT",
+        "2. Zod parse: CreateAppointmentSchema.safeParse(body)",
+        "3. Buscar Services pelo array de serviceIds para calcular totalDuration e totalPrice",
+        "4. Calcular endAt = scheduledAt + totalDuration (em minutos)",
+        "5. prisma.$transaction(async (tx) => { ... }, { isolationLevel: 'Serializable' })",
+        "   a. Dentro da transaction: buscar Appointments do barbeiro que fazem overlap com [scheduledAt, endAt] e status != CANCELLED",
+        "      Query: WHERE barberId = ? AND status != CANCELLED AND scheduledAt < endAt AND endAt > scheduledAt",
+        "   b. Se overlap encontrado: throw new Error('SLOT_CONFLICT')",
+        "   c. Se livre: criar Appointment (status: SCHEDULED) + AppointmentService records (snapshot de preço/duração)",
+        "6. Fora da transaction: se erro 'SLOT_CONFLICT' → return 409 { error: 'Slot unavailable' }",
+        "7. Disparar e-mail de confirmação de forma assíncrona (não await — não bloqueia a resposta)",
+        "8. return 201 com o Appointment criado (incluindo serviços, nome do barbeiro)"
+      ],
+      "get_handler_logic": "GET /api/appointments: retornar agendamentos do cliente logado (session.user.id). Incluir Barber.user.name, AppointmentService com Service.name. Ordenar por scheduledAt DESC.",
+      "query_params_get": "?status=upcoming (scheduledAt >= agora) ou ?status=past (scheduledAt < agora)"
+    },
+    {
+      "id": "s02-04",
+      "title": "API Routes complementares de agendamento",
+      "status": "done",
+      "details": "Endpoints de cancelamento, reagendamento e disponibilidade de barbeiros.",
+      "files": [
+        "src/app/api/appointments/[id]/route.ts",
+        "src/app/api/barbers/route.ts",
+        "src/app/api/barbers/[id]/availability/route.ts"
+      ],
+      "patch_cancel": {
+        "path": "PATCH /api/appointments/[id] com body { action: 'cancel', reason? }",
+        "validations": [
+          "Appointment pertence ao clientId da session",
+          "Status atual é SCHEDULED ou CONFIRMED (não pode cancelar IN_PROGRESS, COMPLETED, etc.)",
+          "Se scheduledAt - agora < BarbershopConfig.cancelPolicy (minutos) → marcar como 'late_cancel' mas permitir"
+        ],
+        "action": "Atualizar status para CANCELLED, gravar cancelledAt e cancelReason"
+      },
+      "patch_reschedule": {
+        "path": "PATCH /api/appointments/[id] com body { action: 'reschedule', scheduledAt, barberId? }",
+        "validations": "Appointment pertence ao cliente, status é SCHEDULED",
+        "action": "Verificar disponibilidade do novo slot (mesma lógica anti-conflito em transaction), atualizar scheduledAt e barberId, manter serviços originais"
+      },
+      "get_barbers": {
+        "path": "GET /api/barbers?serviceIds=id1,id2",
+        "returns": "Barbeiros ativos que realizam TODOS os serviços solicitados. Incluir user.name, user.image, specialties, avaliação média (AVG de Review.rating)",
+        "auth": "Público — sem auth necessária para listagem de barbeiros"
+      },
+      "get_availability": {
+        "path": "GET /api/barbers/[id]/availability?date=YYYY-MM-DD&duration=30",
+        "returns": "Array de strings 'HH:mm' dos slots livres. Chama getAvailableSlots()",
+        "auth": "Público"
+      }
+    },
+    {
+      "id": "s02-05",
+      "title": "Zustand store do fluxo de agendamento",
+      "status": "done",
+      "details": "Estado global do fluxo multi-step. Persiste entre as 4 páginas de agendamento sem usar URL params para dados complexos.",
+      "file": "src/store/bookingStore.ts",
+      "state_shape": {
+        "selectedServices": "Array<{ id: string, name: string, durationMinutes: number, price: number }>",
+        "selectedBarberId": "string | null",
+        "selectedBarberName": "string | null",
+        "selectedDate": "Date | null",
+        "selectedSlot": "string | null (ex: '09:30')",
+        "totalDuration": "number (calculado automaticamente — soma das durações)",
+        "totalPrice": "number (calculado automaticamente — soma dos preços)"
+      },
+      "actions": [
+        "addService(service) — adiciona serviço se não existir",
+        "removeService(serviceId) — remove serviço, recalcula totais",
+        "selectBarber(barberId, barberName) — define barbeiro",
+        "selectDate(date) — define data e limpa slot",
+        "selectSlot(slot) — define slot horário",
+        "reset() — limpa todo o estado (chamado após agendamento criado ou ao sair do fluxo)"
+      ],
+      "computed": "totalDuration e totalPrice recalculados automaticamente via derive nas actions de addService/removeService",
+      "notes": "NÃO usar persist middleware do Zustand — estado de agendamento não deve sobreviver ao refresh. Apenas em memória."
+    },
+    {
+      "id": "s02-06",
+      "title": "Step 1 — Seleção de Serviços (/agendar)",
+      "status": "done",
+      "details": "Primeira tela do fluxo. Grid de serviços com seleção múltipla. 'use client' — usa Zustand store.",
+      "files": [
+        "src/app/(client)/agendar/page.tsx",
+        "src/components/scheduling/ServiceSelector.tsx",
+        "src/components/scheduling/ServiceCard.tsx"
+      ],
+      "page_structure": [
+        "StepIndicator no topo mostrando 'Passo 1 de 4 — Serviços'",
+        "Filtro por categoria (tabs: Todos, Cabelo, Barba, Combo, Tratamento)",
+        "Grid 2 colunas (mobile) / 3 colunas (desktop) de ServiceCard",
+        "Footer sticky com: totalDuration, totalPrice estimado, botão 'Próximo' (disabled até ≥1 serviço selecionado)"
+      ],
+      "service_card": {
+        "content": "Nome do serviço, categoria badge, ícone ou emoji, duração (ex: '30 min'), preço (ex: 'R$ 35')",
+        "selected_state": "Borda accent (#D4830A), checkmark animado no canto superior direito, scale(1.02) suave",
+        "animation": "Fade + slideY na entrada. Stagger 0.05s entre cards (Framer Motion)."
+      },
+      "step_indicator_component": {
+        "file": "src/components/scheduling/StepIndicator.tsx",
+        "props": "currentStep: number, totalSteps: number, labels: string[]",
+        "design": "Linha horizontal com 4 círculos numerados. Círculo ativo = accent. Concluídos = check verde. Futuros = cinza."
+      },
+      "data_fetching": "Server Component busca services via Prisma direto (ou fetch /api/services). Passa para o client component ServiceSelector."
+    },
+    {
+      "id": "s02-07",
+      "title": "Step 2 — Seleção de Barbeiro (/agendar/barbeiro)",
+      "status": "done",
+      "details": "Segunda tela. Lista barbeiros que realizam os serviços selecionados. Inclui opção 'Qualquer disponível'.",
+      "files": [
+        "src/app/(client)/agendar/barbeiro/page.tsx",
+        "src/components/scheduling/BarberSelector.tsx",
+        "src/components/scheduling/BarberCard.tsx"
+      ],
+      "redirect_guard": "Se bookingStore.selectedServices.length === 0, redirecionar para /agendar (step 1)",
+      "barber_card": {
+        "content": "Foto (Avatar), nome, especialidades (chips), avaliação média (estrelas + número de reviews), próximos 3 horários disponíveis (para hoje ou amanhã)",
+        "any_barber_option": "Card especial no topo: 'Qualquer barbeiro disponível' com ícone de múltiplos avatares. Ao selecionar, barberId = 'any'.",
+        "selected_state": "Borda accent, animação scale"
+      },
+      "any_barber_logic": "Quando barberId = 'any', no Step 4 (confirmação), o sistema escolhe automaticamente o barbeiro com mais disponibilidade para o slot escolhido.",
+      "animation": "Cards entram com stagger 0.05s (Framer Motion). Primeira vez que a página carrega — não na navegação de volta."
+    },
+    {
+      "id": "s02-08",
+      "title": "Step 3 — Seleção de Data e Horário (/agendar/horario)",
+      "status": "done",
+      "details": "Calendário mensal + grade de slots. Mais interativo — busca disponibilidade em tempo real ao selecionar data.",
+      "files": [
+        "src/app/(client)/agendar/horario/page.tsx",
+        "src/components/scheduling/SlotPicker.tsx",
+        "src/components/scheduling/CalendarPicker.tsx"
+      ],
+      "redirect_guard": "Se bookingStore.selectedBarberId === null, redirecionar para /agendar/barbeiro",
+      "calendar_component": {
+        "library": "Implementar com react-calendar ou criar component próprio com date-fns",
+        "disabled_days": "Dias no passado desabilitados. Domingos desabilitados (baseado em WorkingHours sem registro para dayOfWeek 0).",
+        "loading_days": "Ao montar, pode pré-buscar próximos 30 dias para marcar quais têm disponibilidade (optional optimization)"
+      },
+      "slot_grid": {
+        "trigger": "Ao selecionar uma data, chamar GET /api/barbers/[id]/availability?date=&duration= com totalDuration do store",
+        "loading_state": "Skeleton de 8 retângulos enquanto busca os slots",
+        "empty_state": "Mensagem 'Nenhum horário disponível neste dia. Escolha outra data.'",
+        "slot_display": "Grid de chips clicáveis com horários. Chip selecionado: fundo accent, texto branco.",
+        "time_grouping": "Agrupar slots por período: Manhã (09h-12h), Tarde (12h-17h), Noite (17h-19h)"
+      }
+    },
+    {
+      "id": "s02-09",
+      "title": "Step 4 — Confirmação e Sucesso (/agendar/confirmar)",
+      "status": "done",
+      "details": "Resumo completo antes de confirmar. Chama a API. Trata conflito de slot. Exibe tela de sucesso.",
+      "files": [
+        "src/app/(client)/agendar/confirmar/page.tsx",
+        "src/components/scheduling/BookingSummary.tsx",
+        "src/components/scheduling/BookingSuccess.tsx"
+      ],
+      "redirect_guard": "Se selectedSlot === null, redirecionar para /agendar/horario",
+      "summary_content": [
+        "Foto + nome do barbeiro",
+        "Lista de serviços com duração e preço individuais",
+        "Data formatada (ex: 'Quinta-feira, 5 de junho de 2026')",
+        "Horário e duração total",
+        "Preço total em destaque",
+        "Política de cancelamento: 'Cancele com pelo menos 2h de antecedência'"
+      ],
+      "confirm_button": {
+        "label": "Confirmar Agendamento",
+        "loading_state": "Spinner + 'Aguarde...' — desabilitar botão durante request",
+        "error_handling": {
+          "409_conflict": "Toast de erro: 'Este horário acabou de ser ocupado. Por favor, escolha outro.' + redirecionar para /agendar/horario",
+          "other_errors": "Toast genérico: 'Erro ao confirmar agendamento. Tente novamente.'"
+        }
+      },
+      "success_screen": {
+        "content": "Ícone de check animado (scale + fade com Framer Motion), 'Agendamento confirmado!', resumo compacto, botão 'Ver meus agendamentos', botão 'Fazer outro agendamento'",
+        "confetti": "Opcional — usar canvas-confetti para celebrar o agendamento",
+        "action_after": "Chamar bookingStore.reset() após exibir sucesso"
+      }
+    },
+    {
+      "id": "s02-10",
+      "title": "Tela Meus Agendamentos (/agendamentos)",
+      "status": "done",
+      "details": "Histórico e próximos agendamentos do cliente. Ações de cancelar e reagendar.",
+      "files": [
+        "src/app/(client)/agendamentos/page.tsx",
+        "src/components/shared/AppointmentCard.tsx",
+        "src/components/shared/StatusBadge.tsx"
+      ],
+      "page_structure": [
+        "Tabs: 'Próximos' (scheduledAt >= agora, status != CANCELLED) e 'Histórico' (scheduledAt < agora ou CANCELLED/COMPLETED)",
+        "Lista de AppointmentCard em cada tab",
+        "Empty state para cada tab quando lista vazia"
+      ],
+      "appointment_card_actions": {
+        "SCHEDULED_future": "Botões: 'Cancelar' (abre ConfirmDialog) e 'Reagendar' (redireciona para /agendar com serviços pré-selecionados)",
+        "COMPLETED": "Botão 'Avaliar' se não avaliado ainda e < 72h",
+        "CANCELLED": "Badge 'Cancelado' — sem ações",
+        "past_no_action": "Agendamentos passados sem avaliação pendente — somente visualização"
+      },
+      "cancel_dialog": {
+        "title": "Cancelar agendamento",
+        "description": "Dinamicamente incluir aviso se cancelamento for tardio: 'Este cancelamento é com menos de X horas de antecedência e será registrado.'",
+        "confirm_button": "Vermelho, label 'Confirmar Cancelamento'",
+        "action": "Chama PATCH /api/appointments/[id] com { action: 'cancel' }, atualiza a lista otimisticamente"
+      },
+      "data_fetching": "Client Component com useState + useEffect e fetch /api/appointments?status=upcoming. Ou usar SWR para revalidação automática."
+    },
+    {
+      "id": "s02-11",
+      "title": "E-mail de confirmação com Resend",
+      "status": "done",
+      "details": "Disparar e-mail imediatamente após agendamento criado. Não bloqueia a resposta HTTP — fire and forget com catch de erro.",
+      "file": "src/lib/notifications/email.ts",
+      "function": "sendConfirmationEmail(appointment: AppointmentWithDetails): Promise<void>",
+      "implementation": [
+        "Usar Resend SDK: new Resend(process.env.RESEND_API_KEY)",
+        "Template inline HTML ou React Email component (preferir React Email para facilitar manutenção)",
+        "Campos do template: clientName, barberName, servicesList (nome + duração), formattedDate, formattedTime, totalDuration, cancelLink",
+        "cancelLink = process.env.NEXTAUTH_URL + '/agendamentos'",
+        "Envolver em try/catch — logar erro mas não lançar (notificação não pode quebrar o fluxo principal)"
+      ],
+      "trigger": "Chamada em POST /api/appointments APÓS o $transaction ter sucedido, de forma assíncrona: sendConfirmationEmail(appointment).catch(console.error)"
+    }
+  ]
+}

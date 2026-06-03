@@ -1,0 +1,281 @@
+{
+  "id": "sprint-04",
+  "title": "Dashboard de Métricas e Painel Admin",
+  "sprint": 4,
+  "status": "done",
+  "priority": "high",
+  "estimated_days": 5,
+  "depends_on": "sprint-03",
+  "description": "Implementar o dashboard executivo do dono (KPIs em tempo real, gráficos de faturamento, grid de ocupação) e o painel de gestão completo (CRUD de barbeiros e serviços, configuração de regras de comissão, fechamento de comissões, relatórios e exportação CSV).",
+  "acceptance_criteria": [
+    "KPIs do dia (faturamento, atendimentos, ticket médio) refletem atendimentos concluídos sem refresh manual",
+    "Gráfico de linha de faturamento exibe dados corretos dos últimos 30 dias",
+    "Grid de ocupação mostra todos os barbeiros e seus slots do dia em tempo real",
+    "CRUD completo de barbeiros: criar, editar, ativar/desativar (com verificação de agendamentos futuros)",
+    "CRUD completo de serviços com preço customizado por barbeiro",
+    "Regras de comissão configuráveis via UI — hierarquia de 4 níveis",
+    "Fechamento de comissões: marcar todos os PENDING de um barbeiro como PAID em lote",
+    "Exportação CSV retorna arquivo correto para download"
+  ],
+  "steps": [
+    {
+      "id": "s04-01",
+      "title": "API Routes de métricas — overview e faturamento",
+      "status": "done",
+      "details": "Endpoints de agregação para o dashboard. Queries com Prisma groupBy e _sum. Apenas role ADMIN.",
+      "files": [
+        "src/app/api/admin/metrics/overview/route.ts",
+        "src/app/api/admin/metrics/revenue/route.ts",
+        "src/app/api/admin/metrics/barbers/route.ts"
+      ],
+      "overview_endpoint": {
+        "path": "GET /api/admin/metrics/overview?period=today|week|month",
+        "returns": {
+          "totalRevenue": "Soma de Appointment.totalPrice WHERE status=COMPLETED no período",
+          "totalAppointments": "Count de Appointments COMPLETED no período",
+          "averageTicket": "totalRevenue / totalAppointments (0 se sem atendimentos)",
+          "newClients": "Count de Users com role CLIENT criados no período",
+          "returningClients": "Count de clientes com ≥2 appointments COMPLETED no período",
+          "occupancyRate": "% de slots preenchidos vs. slots totais disponíveis no período (simplificado: appointments / (barbeiros_ativos * horas_trabalho / 30min))"
+        },
+        "prisma_pattern": "Usar $transaction para múltiplas queries atômicas. Usar _count e _sum do Prisma."
+      },
+      "revenue_endpoint": {
+        "path": "GET /api/admin/metrics/revenue?groupBy=day|service|barber&from=&to=",
+        "returns_by_day": "Array de { date: 'YYYY-MM-DD', revenue: number } para gráfico de linha",
+        "returns_by_service": "Array de { serviceName: string, revenue: number, count: number } para gráfico de pizza",
+        "returns_by_barber": "Array de { barberName: string, revenue: number, appointments: number } para ranking",
+        "prisma_day_query": "groupBy(['DATE(scheduledAt)'], _sum: { totalPrice }, WHERE status=COMPLETED"
+      },
+      "barbers_metrics_endpoint": {
+        "path": "GET /api/admin/metrics/barbers?period=",
+        "returns": "Array de barbeiros com: nome, foto, appointments count, totalRevenue, averageTicket, averageRating, commissionPending"
+      }
+    },
+    {
+      "id": "s04-02",
+      "title": "Dashboard home — KPIs, gráficos e grid (/dashboard)",
+      "status": "done",
+      "details": "Página principal do admin. KPIs com animação de contagem, gráficos Recharts e grid de ocupação.",
+      "files": [
+        "src/app/(admin)/dashboard/page.tsx",
+        "src/components/dashboard/KPICard.tsx",
+        "src/components/dashboard/RevenueChart.tsx",
+        "src/components/dashboard/ServicesPieChart.tsx",
+        "src/components/dashboard/BarberRanking.tsx",
+        "src/components/dashboard/OccupancyGrid.tsx"
+      ],
+      "period_filter": {
+        "component": "PeriodFilter.tsx — tabs: Hoje / Esta semana / Este mês / Personalizado",
+        "behavior": "Ao mudar período, re-fetchar todos os dados. Usar estado local (useState) para o período selecionado.",
+        "custom_period": "DateRangePicker para período personalizado (shadcn Calendar em modo range)"
+      },
+      "kpi_cards": {
+        "cards": [
+          "Faturamento do período (R$ formatado)",
+          "Atendimentos realizados",
+          "Ticket médio",
+          "Clientes novos"
+        ],
+        "animation": "CountUp animation: número animado de 0 até o valor real ao carregar (Framer Motion + requestAnimationFrame ou react-countup)",
+        "trend": "Cada card mostra variação vs. período anterior (ex: '↑ 12% vs. semana passada') em success ou error color"
+      },
+      "revenue_chart": {
+        "type": "LineChart do Recharts",
+        "data_source": "GET /api/admin/metrics/revenue?groupBy=day&from=&to=",
+        "config": "Linha accent (#D4830A), área preenchida com opacidade 20%, tooltip customizado com R$ formatado, grid horizontal em muted",
+        "responsive": "ResponsiveContainer com height=300"
+      },
+      "services_pie_chart": {
+        "type": "PieChart do Recharts",
+        "data_source": "GET /api/admin/metrics/revenue?groupBy=service",
+        "config": "Fatias com cores distintas (definir palette), legenda ao lado, tooltip com nome + count + revenue"
+      },
+      "barber_ranking_table": {
+        "columns": "Posição | Barbeiro (foto + nome) | Atendimentos | Faturamento | Ticket Médio | Avaliação",
+        "sort": "Por faturamento DESC",
+        "row_highlight": "Primeiro lugar com fundo accent sutil"
+      },
+      "occupancy_grid": {
+        "layout": "Tabela: linhas = horários (09:00, 09:15..18:45), colunas = barbeiros ativos",
+        "cell_states": [
+          "Vazia (disponível): fundo muted",
+          "Agendada: fundo accent/20%, nome do cliente truncado, tooltip com detalhes",
+          "IN_PROGRESS: borda accent sólida, animação de pulse",
+          "COMPLETED: fundo success/20%, ícone de check",
+          "Bloqueada: fundo primary/10%, ícone de bloqueio"
+        ],
+        "data_source": "GET /api/barber/appointments?date=today para todos os barbeiros (admin pode ver tudo)",
+        "polling": "Revalidar a cada 60 segundos via setInterval + fetch",
+        "click_cell": "Abre popover com detalhes: cliente completo, serviços, status, ações (marcar no-show se admin)"
+      }
+    },
+    {
+      "id": "s04-03",
+      "title": "CRUD de Barbeiros (/barbeiros)",
+      "status": "done",
+      "details": "Gestão completa de barbeiros: listagem, criação, edição, ativação/desativação com verificação de agendamentos futuros.",
+      "files": [
+        "src/app/(admin)/barbeiros/page.tsx",
+        "src/app/(admin)/barbeiros/novo/page.tsx",
+        "src/app/(admin)/barbeiros/[id]/page.tsx",
+        "src/components/admin/BarberForm.tsx",
+        "src/app/api/admin/barbers/route.ts",
+        "src/app/api/admin/barbers/[id]/route.ts",
+        "src/lib/validations/barber.ts"
+      ],
+      "listing_page": {
+        "table_columns": "Foto | Nome | Status (Active badge) | Serviços | Atendimentos no mês | Comissão padrão | Ações",
+        "actions": "Editar (link para /barbeiros/[id]) | Ativar/Desativar (toggle com ConfirmDialog)",
+        "search": "Input de busca por nome (filtro client-side)"
+      },
+      "barber_form": {
+        "sections": [
+          "Dados pessoais: nome (obrigatório), e-mail (obrigatório, único), telefone, bio, foto (upload Cloudinary)",
+          "Configuração profissional: especialidades (input de tags), taxa de comissão padrão (slider ou input %, 0-100)",
+          "Serviços que realiza: Multiselect com todos os serviços ativos. Para cada serviço selecionado: campo opcional de preço customizado",
+          "Horário de trabalho: 7 toggles por dia (Dom-Sáb) com campos de início/fim (herdado do horário da barbearia como padrão)"
+        ],
+        "photo_upload": "Input de arquivo → preview imediato → ao submit envia para POST /api/upload/barber-photo (backend assina upload Cloudinary e retorna URL)",
+        "create_action": "POST /api/admin/barbers: criar User (role BARBER) + Barber record + BarberService records + WorkingHours. Enviar e-mail de boas-vindas com credenciais.",
+        "edit_action": "PATCH /api/admin/barbers/[id]: atualizar campos editados",
+        "zod_schema": "BarberFormSchema em src/lib/validations/barber.ts — compartilhado entre form e API"
+      },
+      "deactivate_logic": {
+        "check": "Antes de desativar: buscar Appointments futuros com status SCHEDULED do barbeiro",
+        "if_has_future": "Dialog de aviso: 'Este barbeiro tem X agendamentos futuros. Todos serão marcados como a reagendar e os clientes notificados.' Botão de confirmação.",
+        "action": "Setar isActive=false. Atualizar appointments futuros para status CANCELLED com cancelReason='Barbeiro indisponível'. Disparar e-mail para cada cliente afetado."
+      }
+    },
+    {
+      "id": "s04-04",
+      "title": "CRUD de Serviços (/servicos)",
+      "status": "done",
+      "details": "Catálogo de serviços: criar, editar, ativar/desativar. Preço customizado por barbeiro.",
+      "files": [
+        "src/app/(admin)/servicos/page.tsx",
+        "src/app/(admin)/servicos/novo/page.tsx",
+        "src/app/(admin)/servicos/[id]/page.tsx",
+        "src/components/admin/ServiceForm.tsx",
+        "src/app/api/admin/services/route.ts",
+        "src/app/api/admin/services/[id]/route.ts",
+        "src/lib/validations/service.ts"
+      ],
+      "service_form_fields": {
+        "name": "Obrigatório, max 80 chars",
+        "description": "Opcional, textarea, max 300 chars",
+        "category": "Select: cabelo | barba | sobrancelha | combo | tratamento",
+        "durationMinutes": "Number input, mínimo 5, máximo 480, step 5. Label: 'Duração (minutos)'",
+        "basePrice": "Number input decimal, mínimo 0. Label: 'Preço base (R$)'",
+        "barbers": "Lista de barbeiros ativos com checkbox. Cada barbeiro selecionado: exibir campo opcional 'Preço para este barbeiro (R$)' — se vazio, usa basePrice"
+      },
+      "listing_columns": "Nome | Categoria | Duração | Preço | Barbeiros | Status | Ações",
+      "api_routes": {
+        "POST": "Criar Service + BarberService records",
+        "PATCH": "Atualizar campos do Service + sincronizar BarberService (remover os que saíram, adicionar os novos, atualizar preços customizados)",
+        "DELETE_soft": "isActive = false. Verificar se há agendamentos futuros com este serviço antes de desativar."
+      }
+    },
+    {
+      "id": "s04-05",
+      "title": "Gestão de comissões e fechamento (/comissoes — admin)",
+      "status": "done",
+      "details": "Tela de fechamento de comissões. Admin visualiza comissões pendentes por barbeiro e paga em lote.",
+      "files": [
+        "src/app/(admin)/comissoes/page.tsx",
+        "src/components/admin/CommissionClosingTable.tsx",
+        "src/components/admin/CommissionRuleForm.tsx",
+        "src/app/api/admin/commissions/pay/route.ts",
+        "src/app/api/admin/commissions/rules/route.ts",
+        "src/app/api/admin/commissions/rules/[id]/route.ts"
+      ],
+      "closing_section": {
+        "layout": "Tabs por barbeiro (ou accordion). Cada seção mostra: barbeiro, total PENDING, lista de comissões PENDING detalhadas",
+        "commission_row": "Data | Atendimento (cliente + serviço) | Forma pagamento | % | Valor",
+        "pay_button": "Botão 'Fechar comissões' por barbeiro (no footer de cada seção). Abre PaymentDialog.",
+        "payment_dialog": "Campos: Forma de pagamento (Pix, Dinheiro, Transferência), Data de pagamento (default: hoje), Observação opcional. Botão 'Confirmar pagamento'",
+        "pay_api": "POST /api/admin/commissions/pay com { barberId, paymentMethod, paidAt, notes }. Atualiza TODOS os Commission PENDING do barbeiro para PAID, grava paidAt e paidBy (session.user.id). Retorna count de comissões fechadas.",
+        "success_feedback": "Toast: 'X comissões de Rafael fechadas! Total: R$ Y.'"
+      },
+      "commission_rules_section": {
+        "title": "Regras de Comissão",
+        "visual_hierarchy": [
+          "Nível 1 — Padrão da Barbearia: campo único de % (ex: 30%). Sempre existe.",
+          "Nível 2 — Por Barbeiro: tabela com barbeiro + % override. Botão 'Adicionar regra por barbeiro'.",
+          "Nível 3 — Barbeiro + Serviço: tabela com barbeiro + serviço + %. Botão 'Adicionar'.",
+          "Nível 4 — Barbeiro + Serviço + Pagamento: tabela com barbeiro + serviço + forma de pagamento + %. Botão 'Adicionar'."
+        ],
+        "form_fields": "Depende do nível: selects para barbeiro, serviço e forma de pagamento. % rate (0-100).",
+        "preview_calculator": "Simulador: escolhe barbeiro + serviço + pagamento + valor. Mostra qual regra seria aplicada e o valor de comissão resultante.",
+        "api_rules": "GET /api/admin/commissions/rules (todas as regras), POST (criar), PATCH /[id] (editar), DELETE /[id] (remover)"
+      }
+    },
+    {
+      "id": "s04-06",
+      "title": "Relatórios e exportação CSV (/relatorios)",
+      "status": "done",
+      "details": "Relatórios de faturamento, agendamentos e clientes com exportação de dados.",
+      "files": [
+        "src/app/(admin)/relatorios/page.tsx",
+        "src/app/api/admin/metrics/export/route.ts"
+      ],
+      "page_layout": [
+        "Filtros: período (date range) + tipo de relatório (select)",
+        "Tabela de dados conforme tipo selecionado",
+        "Botão 'Exportar CSV'"
+      ],
+      "report_types": {
+        "faturamento": "Colunas: Data | Agendamento ID | Cliente | Barbeiro | Serviços | Preço | Forma de pagamento | Comissão gerada",
+        "agendamentos": "Colunas: Data | Horário | Cliente | Barbeiro | Serviços | Duração | Status | Cancelado em",
+        "clientes": "Colunas: Nome | E-mail | Telefone | Data de cadastro | Total de agendamentos | Último atendimento",
+        "barbeiros": "Colunas: Barbeiro | Atendimentos | Faturamento | Ticket médio | Comissão gerada | Comissão paga | Avaliação média"
+      },
+      "csv_export": {
+        "endpoint": "GET /api/admin/metrics/export?type=faturamento&from=&to=",
+        "response_headers": "Content-Type: text/csv; Content-Disposition: attachment; filename='relatorio-faturamento-2026-06.csv'",
+        "encoding": "UTF-8 com BOM (\\uFEFF no início) para compatibilidade com Excel",
+        "implementation": "Buscar dados via Prisma, converter para CSV string com cabeçalhos em português, retornar Response com headers de download"
+      }
+    },
+    {
+      "id": "s04-07",
+      "title": "Gestão de Clientes (/clientes — admin)",
+      "status": "done",
+      "details": "Listagem e perfil detalhado de clientes para o admin.",
+      "files": [
+        "src/app/(admin)/clientes/page.tsx",
+        "src/app/(admin)/clientes/[id]/page.tsx",
+        "src/app/api/admin/clients/route.ts",
+        "src/app/api/admin/clients/[id]/route.ts"
+      ],
+      "listing": {
+        "columns": "Avatar | Nome | E-mail | Telefone | Agendamentos | Última visita | Cadastro",
+        "search": "Input server-side: busca por nome, e-mail ou telefone (query param ?q=)",
+        "pagination": "20 por página com controles"
+      },
+      "client_profile_page": {
+        "content": "Dados pessoais, histórico completo de agendamentos (tabela), estatísticas (total gasto, qtd visitas, barbeiro favorito)",
+        "actions": "Botão 'Adicionar agendamento manual' (admin pode agendar por um cliente)"
+      }
+    },
+    {
+      "id": "s04-08",
+      "title": "Configurações da Barbearia (/configuracoes)",
+      "status": "done",
+      "details": "Configurações gerais da barbearia editáveis pelo admin.",
+      "files": [
+        "src/app/(admin)/configuracoes/page.tsx",
+        "src/app/api/admin/config/route.ts",
+        "src/lib/validations/config.ts"
+      ],
+      "form_sections": [
+        "Dados da empresa: nome, telefone, endereço, Instagram, WhatsApp link",
+        "Logo: upload de imagem (Cloudinary). Preview em tempo real.",
+        "Horário de funcionamento da barbearia (padrão para barbeiros sem horário customizado): 7 toggles + campos início/fim",
+        "Política de cancelamento: número de horas de antecedência mínima (input numérico, padrão 2)",
+        "Notificações: toggles para ativar/desativar e-mail de confirmação, lembrete 24h, lembrete 2h, link de avaliação"
+      ],
+      "api": "GET /api/admin/config (retorna BarbershopConfig), PATCH /api/admin/config (atualiza campos). Upsert pois é singleton."
+    }
+  ]
+}

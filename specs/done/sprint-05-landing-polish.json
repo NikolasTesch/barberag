@@ -1,0 +1,274 @@
+{
+  "id": "sprint-05",
+  "title": "Landing Page, Lembretes Automáticos e Polimento Final",
+  "sprint": 5,
+  "status": "done",
+  "priority": "high",
+  "estimated_days": 4,
+  "depends_on": "sprint-04",
+  "description": "Construir a landing page pública BARBERAG com todas as seções (hero, serviços, equipe, galeria, depoimentos, footer), configurar lembretes automáticos via Vercel Cron Jobs, implementar o sistema de avaliações pós-atendimento e realizar QA completo de performance e acessibilidade.",
+  "acceptance_criteria": [
+    "Landing page carrega em ≤ 2s (LCP) — Lighthouse mobile ≥ 85",
+    "CTA 'Agendar Agora' redireciona para /agendar corretamente (login se não autenticado)",
+    "Botão flutuante 'Agendar' visível em mobile ao rolar a página",
+    "Lembrete WhatsApp + e-mail enviado 24h antes do agendamento (testado manualmente)",
+    "Lembrete enviado 2h antes do agendamento",
+    "Barbeiro recebe link de avaliação até 30min após atendimento concluído",
+    "Avaliação pode ser submetida sem login via token único",
+    "Avaliações publicadas (isPublished=true, rating≥4) aparecem na landing page",
+    "Todas as telas sem erros de TypeScript, sem console.log, sem quebras de layout em 375px e 1280px"
+  ],
+  "steps": [
+    {
+      "id": "s05-01",
+      "title": "Layout público e estrutura da landing page",
+      "status": "done",
+      "details": "Server Component raiz da landing page. Layout com navbar pública e animações de scroll.",
+      "files": [
+        "src/app/(public)/layout.tsx",
+        "src/app/(public)/page.tsx",
+        "src/components/landing/PublicNav.tsx"
+      ],
+      "public_layout": {
+        "navbar": "Logo BARBERAG à esquerda, links âncora (Serviços, Equipe, Galeria, Contato) ao centro, botão 'Agendar' à direita. Fundo transparente que vira #1A1A1A ao rolar (scroll listener).",
+        "mobile_nav": "Hambúrguer menu. Drawer lateral com os links.",
+        "server_component": "layout.tsx é Server Component — sem 'use client'. Navbar com scroll behavior em Client Component isolado."
+      },
+      "page_assembly": "page.tsx importa seções na ordem: Hero, Services, Team, Gallery, Testimonials, Info, Footer. Cada seção é importado com dynamic() e loading={SectionSkeleton} para performance.",
+      "scroll_animations": "Cada seção usa Framer Motion whileInView com threshold 0.2 e once:true para animar apenas na primeira vez que aparece na tela."
+    },
+    {
+      "id": "s05-02",
+      "title": "Seção Hero",
+      "status": "done",
+      "details": "Primeira dobra da landing page. Deve converter visitante em agendamento.",
+      "file": "src/components/landing/Hero.tsx",
+      "design": {
+        "background": "Fundo #1A1A1A com imagem de barbearia em overlay escuro (opacidade 60%)",
+        "logo": "BARBERAG em Playfair Display 700, branco, centralizado. Abaixo: 'AUTHENTIC BARBERSHOP' em tracking-widest.",
+        "headline": "Ex: 'Seu estilo começa aqui.' em Playfair Display tamanho grande",
+        "subheadline": "Ex: 'Agende com os melhores barbeiros da região. Rápido, fácil e sem ligação.' em Inter regular.",
+        "cta_button": "Botão grande accent (#D4830A): 'Agendar Agora'. Hover: darken 10%. Link para /agendar (se autenticado) ou /login?callbackUrl=/agendar",
+        "secondary_cta": "Link texto: 'Ver nossos serviços ↓' (scroll suave para #services)"
+      },
+      "animations": "Stagger: logo aparece (fade+scale), depois headline, depois subheadline, depois botões. Delay 0.2s entre cada.",
+      "performance": "Imagem de fundo com priority em next/image, tamanho otimizado. LCP target: a imagem hero é o LCP element — deve ser preloaded."
+    },
+    {
+      "id": "s05-03",
+      "title": "Seções de Serviços e Equipe",
+      "status": "done",
+      "details": "Server Components que buscam dados do banco com cache de 1h.",
+      "files": [
+        "src/components/landing/Services.tsx",
+        "src/components/landing/Team.tsx"
+      ],
+      "services_section": {
+        "data_fetching": "Server Component: busca via prisma direto ou fetch('/api/services', { next: { revalidate: 3600 } }). Apenas isActive=true.",
+        "layout": "Grid 2 colunas (mobile) / 4 colunas (desktop). Máx 8 serviços exibidos.",
+        "card": "Ícone da categoria (emoji ou SVG), nome em destaque, duração, preço ou 'Consulte'. Fundo #F5F5F5, hover: sombra e translação Y.",
+        "cta": "Abaixo do grid: 'Agende seu horário' botão accent linkando para /agendar",
+        "animation": "whileInView fade + slideY stagger entre cards"
+      },
+      "team_section": {
+        "data_fetching": "Barbeiros ativos com: user.name, user.image, specialties, avaliação média (AVG Review.rating WHERE isPublished=true). revalidate: 3600.",
+        "card": "Foto circular (Avatar), nome, especialidades em chips, estrelas de avaliação, link 'Agendar com este barbeiro' (link para /agendar com barbeiro pré-selecionado via query param?barberId=)",
+        "animation": "Cards entram com stagger ao entrar na viewport"
+      }
+    },
+    {
+      "id": "s05-04",
+      "title": "Galeria, Depoimentos e Footer",
+      "status": "done",
+      "details": "Seções finais da landing page.",
+      "files": [
+        "src/components/landing/Gallery.tsx",
+        "src/components/landing/Testimonials.tsx",
+        "src/components/landing/Info.tsx",
+        "src/components/landing/Footer.tsx",
+        "src/components/landing/FloatingCTA.tsx"
+      ],
+      "gallery": {
+        "data": "GalleryImage WHERE isPublished=true ORDER BY order ASC",
+        "layout": "Grid masonry 2 colunas (mobile) / 3 colunas (desktop). Imagens com next/image.",
+        "lightbox": "Ao clicar na foto, abrir Dialog com a imagem em tamanho maior. Navegação anterior/próximo com teclado.",
+        "admin_management": "Gerenciado via /configuracoes (sprint 4). Upload via Cloudinary."
+      },
+      "testimonials": {
+        "data": "Review WHERE isPublished=true AND rating>=4 ORDER BY createdAt DESC LIMIT 10",
+        "layout": "Carrossel horizontal (Embla Carousel ou implementação própria). Auto-play a cada 5s.",
+        "card": "Stars rating, comentário em itálico, nome do cliente (primeira letra do sobrenome abreviada por privacidade), data, foto do barbeiro que atendeu",
+        "no_reviews": "Seção oculta se não há reviews publicadas"
+      },
+      "info_section": {
+        "content": "Google Maps embed (iframe com endereço), horário de funcionamento (do BarbershopConfig), telefone clicável (tel:), WhatsApp link (wa.me/), Instagram link",
+        "data": "Server Component busca BarbershopConfig"
+      },
+      "footer": "Logo, tagline, links de navegação, redes sociais, '© 2026 BARBERAG. Todos os direitos reservados.'",
+      "floating_cta": {
+        "component": "FloatingCTA.tsx — 'use client'",
+        "behavior": "Botão fixo no bottom-right em desktop, bottom-full em mobile. Visível apenas após rolar 300px do topo. Fade-in com Framer Motion. Link para /agendar.",
+        "mobile_full": "Em mobile: barra full-width na parte inferior (acima do safe area). Texto 'Agendar Agora' com ícone de tesoura."
+      }
+    },
+    {
+      "id": "s05-05",
+      "title": "WhatsApp notification (Evolution API)",
+      "status": "done",
+      "details": "Integrar Evolution API para envio de mensagens WhatsApp. Usar nos lembretes e confirmações.",
+      "file": "src/lib/notifications/whatsapp.ts",
+      "function": "sendWhatsAppMessage(phone: string, message: string): Promise<void>",
+      "implementation": [
+        "Base URL: process.env.EVOLUTION_API_URL",
+        "Header: apikey: process.env.EVOLUTION_API_KEY",
+        "Endpoint: POST /message/sendText/{instance}",
+        "Body: { number: formatPhone(phone), text: message }",
+        "formatPhone: garantir formato 55XXXXXXXXXXX (DDI + DDD + número sem espaços ou traços)",
+        "Envolver em try/catch — logar erro mas não propagar (WhatsApp é best-effort)"
+      ],
+      "phone_formatting": "Remover tudo que não for dígito. Se não começar com 55, adicionar. Ex: '(11) 99999-9999' → '5511999999999'",
+      "templates": "Ver templates em spec-geral.json#notifications_templates. Interpolação simples de strings."
+    },
+    {
+      "id": "s05-06",
+      "title": "Vercel Cron — lembretes automáticos",
+      "status": "done",
+      "details": "Duas API Routes protegidas por CRON_SECRET que enviam lembretes de agendamentos próximos.",
+      "files": [
+        "src/app/api/cron/reminders-24h/route.ts",
+        "src/app/api/cron/reminders-2h/route.ts",
+        "vercel.json"
+      ],
+      "auth_check": {
+        "pattern": "const auth = req.headers.get('Authorization'); if (auth !== `Bearer ${process.env.CRON_SECRET}`) return Response.json({ error: 'Unauthorized' }, { status: 401 })"
+      },
+      "reminders_24h_logic": [
+        "Calcular janela: agora + 23h até agora + 25h",
+        "Buscar Appointments WHERE scheduledAt BETWEEN janela AND status IN (SCHEDULED, CONFIRMED)",
+        "Para cada appointment: verificar se lembrete 24h já foi enviado (campo reminderSent24h na tabela — adicionar migration)",
+        "Se não enviado: chamar sendWhatsAppMessage + sendReminderEmail, marcar reminderSent24h=true",
+        "Retornar count de lembretes enviados"
+      ],
+      "reminders_2h_logic": "Igual mas janela: agora + 1h50min até agora + 2h10min. Campo reminderSent2h.",
+      "migration_needed": "Adicionar campos reminderSent24h: Boolean @default(false) e reminderSent2h: Boolean @default(false) em Appointment. Executar nova migration.",
+      "vercel_json": {
+        "crons": [
+          {
+            "path": "/api/cron/reminders-24h",
+            "schedule": "0 * * * *"
+          },
+          {
+            "path": "/api/cron/reminders-2h",
+            "schedule": "*/30 * * * *"
+          }
+        ]
+      },
+      "local_testing": "Para testar localmente: chamar curl com header Authorization: Bearer CRON_SECRET manualmente"
+    },
+    {
+      "id": "s05-07",
+      "title": "Sistema de avaliações pós-atendimento",
+      "status": "done",
+      "details": "Geração de link único de avaliação após conclusão do atendimento, página pública sem login e moderação pelo admin.",
+      "files": [
+        "src/app/api/reviews/route.ts",
+        "src/app/avaliar/[token]/page.tsx",
+        "src/app/avaliar/[token]/ReviewForm.tsx"
+      ],
+      "token_generation": {
+        "trigger": "Após transição para COMPLETED (sprint 3 step s03-02), gerar token único: crypto.randomUUID()",
+        "storage": "Appointment.reviewToken = token gerado",
+        "dispatch": "Enviar link /avaliar/{token} via WhatsApp e e-mail ao cliente"
+      },
+      "review_page": {
+        "path": "/avaliar/[token]",
+        "auth": "PÚBLICA — sem autenticação necessária. Token é a autenticação.",
+        "data_loading": "Server Component: buscar Appointment pelo reviewToken. Se token inválido ou já avaliado ou >72h → exibir 'Link inválido ou expirado'.",
+        "form_content": [
+          "Header: 'Como foi seu atendimento com {barberName}?'",
+          "Star rating: 1-5 estrelas interativas (Client Component). Obrigatório.",
+          "Textarea comentário: opcional, max 500 chars, placeholder 'Conte como foi sua experiência...'",
+          "Botão 'Enviar avaliação'"
+        ],
+        "on_submit": "POST /api/reviews com { token, rating, comment }. API valida token, cria Review com isPublished=false, retorna success.",
+        "success_state": "Tela de agradecimento: 'Obrigado pela sua avaliação! ⭐' com animação."
+      },
+      "review_api": {
+        "POST": {
+          "auth": "Público — não requer session",
+          "validations": [
+            "Buscar Appointment pelo token",
+            "Se não encontrado: 404",
+            "Se Appointment.createdAt > 72h atrás (usando scheduledAt + 72h): 410 'Link expirado'",
+            "Se já existe Review para este appointmentId: 409 'Já avaliado'",
+            "Zod: rating 1-5, comment max 500 chars"
+          ],
+          "action": "Criar Review com isPublished=false (admin moderará). Limpar Appointment.reviewToken (para não reutilizar)."
+        }
+      },
+      "admin_moderation": "Na tela /configuracoes do admin (ou /relatorios), listar Reviews com isPublished=false. Botão 'Publicar' / 'Rejeitar' para cada."
+    },
+    {
+      "id": "s05-08",
+      "title": "QA completo — acessibilidade, performance e testes manuais",
+      "status": "done",
+      "details": "Sprint final de qualidade. Revisar todas as telas contra o Definition of Done.",
+      "checklist_loading_states": [
+        "src/app/(client)/agendar: skeleton de cards enquanto busca serviços",
+        "src/app/(client)/agendar/barbeiro: skeleton de barber cards",
+        "src/app/(client)/agendar/horario: skeleton do calendário e skeleton da grade de slots",
+        "src/app/(client)/agendamentos: skeleton de appointment cards",
+        "src/app/(barber)/agenda: skeleton da lista de agendamentos",
+        "src/app/(barber)/comissoes: skeleton dos cards de resumo e tabela",
+        "src/app/(admin)/dashboard: skeleton dos KPI cards e dos gráficos"
+      ],
+      "checklist_error_states": [
+        "409 no agendamento: mensagem 'Horário ocupado, escolha outro'",
+        "Falha de conexão: mensagem 'Erro ao carregar dados. Tente novamente.' com botão retry",
+        "Token de avaliação inválido: mensagem 'Este link não é válido ou já foi utilizado'",
+        "Form de login com credenciais erradas: 'E-mail ou senha incorretos'"
+      ],
+      "checklist_empty_states": [
+        "Agenda do barbeiro sem agendamentos hoje",
+        "Comissões sem histórico no período",
+        "Meus agendamentos sem próximos agendamentos",
+        "Histórico de agendamentos vazio",
+        "Dashboard sem atendimentos do dia"
+      ],
+      "performance_actions": [
+        "Rodar Lighthouse no Chrome em modo anônimo para landing page",
+        "Verificar LCP < 2s: a hero image deve ter priority e tamanho correto",
+        "Verificar CLS = 0: reservar espaço para imagens com width/height ou aspect-ratio",
+        "Verificar que nenhum dado da landing page é carregado client-side desnecessariamente"
+      ],
+      "accessibility_checks": [
+        "Contraste mínimo WCAG AA em todos os textos sobre fundos coloridos",
+        "Botões com aria-label descritivo quando só têm ícone",
+        "Inputs com labels associados (htmlFor/id)",
+        "Modais com foco trapped (shadcn Dialog já faz isso)",
+        "Navegação por teclado funcional em todas as telas críticas"
+      ],
+      "mobile_test_checklist": [
+        "Fluxo de agendamento completo em 375px: step indicator visível, footer sticky não sobrepõe conteúdo",
+        "Bottom navigation do cliente e barbeiro funcional",
+        "Calendário de slots usável no touch",
+        "Modal de conclusão não vaza pelo topo em mobile",
+        "Landing page: hero section visível sem scroll horizontal"
+      ],
+      "typescript_final_check": "npx tsc --noEmit deve retornar 0 erros antes do deploy",
+      "final_integration_test": {
+        "description": "Teste ponta a ponta manual antes do go-live",
+        "scenario": [
+          "1. Abrir landing page — verificar performance e CTAs",
+          "2. Clicar 'Agendar' → cadastro de cliente novo → fluxo de agendamento completo",
+          "3. Verificar e-mail de confirmação recebido",
+          "4. Login como barbeiro → verificar agendamento na agenda → check-in → concluir com pagamento",
+          "5. Verificar comissão gerada no painel do barbeiro",
+          "6. Login como admin → verificar KPIs atualizados → fechar comissão do barbeiro",
+          "7. Cliente recebe link de avaliação → submete avaliação",
+          "8. Admin publica a avaliação → aparece na landing page"
+        ]
+      }
+    }
+  ]
+}

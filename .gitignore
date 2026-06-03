@@ -1,0 +1,102 @@
+# ---------------------------------------------------------------------------
+# BARBERAG — .gitignore (Next.js 14 + Prisma + TypeScript)
+# ---------------------------------------------------------------------------
+
+# Dependências
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Build / saída do Next.js
+/.next/
+/out/
+/build
+/dist
+next-env.d.ts
+*.tsbuildinfo
+
+# Variáveis de ambiente (NUNCA commitar segredos)
+.env
+.env*.local
+.env.local
+.env.development
+.env.development.local
+.env.staging
+.env.production
+.env.production.local
+# Mantém o template versionado
+!.env.example
+
+# Prisma — segredos e artefatos locais
+prisma/*.db
+prisma/*.db-journal
+prisma/migrations/dev.db*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Cobertura de testes
+/coverage
+*.lcov
+.nyc_output
+
+# Cache de ferramentas
+.eslintcache
+.cache/
+.turbo/
+.vercel
+.swc/
+
+# TypeScript
+*.tsbuildinfo
+
+# Deploy / plataformas
+.vercel/
+
+# Editores e IDEs
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Sistema operacional
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Arquivos temporários / diversos
+*.pem
+*.tmp
+*.bak
+image.png
+
+# Storybook
+storybook-static/
+
+# Certificados e chaves
+*.key
+*.crt
+*.p12
+firebase-credentials.json
+*-service-account.json

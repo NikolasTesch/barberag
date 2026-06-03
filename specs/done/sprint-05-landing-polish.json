@@ -6,6 +6,7 @@
   "priority": "high",
   "estimated_days": 4,
   "depends_on": "sprint-04",
+  "verification_note": "Auditado em 2026-06-03: código de todos os 8 steps presente, tsc --noEmit limpo, sem console.log de debug, todas as validations/componentes/rotas existem. RESSALVA (s05-06): vercel.json agenda apenas reminders-24h em cadência diária (0 0 * * *) e NÃO agenda reminders-2h — limite de cron do plano Vercel Hobby (máx 1x/dia). As rotas e a lógica (reminders.ts) estão prontas e pressupõem cron de hora em hora, mas na config atual o lembrete 24h só cobre agendamentos ~23-01h do dia seguinte e o 2h nunca dispara. Critérios 'Lembrete 24h/2h' parcialmente não atendidos até decisão de plano (Vercel Pro ou scheduler externo). Demais critérios verificáveis sem .env OK.",
   "description": "Construir a landing page pública BARBERAG com todas as seções (hero, serviços, equipe, galeria, depoimentos, footer), configurar lembretes automáticos via Vercel Cron Jobs, implementar o sistema de avaliações pós-atendimento e realizar QA completo de performance e acessibilidade.",
   "acceptance_criteria": [
     "Landing page carrega em ≤ 2s (LCP) — Lighthouse mobile ≥ 85",

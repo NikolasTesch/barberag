@@ -6,6 +6,7 @@
   "priority": "critical",
   "estimated_days": 4,
   "depends_on": "sprint-02",
+  "status_note": "Código completo. Backend já existia (commission.ts com selectCommissionRate puro, rotas /api/barber/appointments[+checkin+complete], /commissions, /availability — todas com isolamento via getSessionBarber). Nesta sessão as 3 telas do barbeiro, antes mockups estáticos, foram religadas às APIs reais: /agenda (fetch por data, navegação de dias, check-in, conclusão via CompleteModal, polling 120s), /comissoes (filtro período hoje|semana|mês, summary, tabela paginada 20), /disponibilidade (GET/PATCH grade semanal + bloqueios). Criado src/components/barber/CompleteModal.tsx. tsc --noEmit limpo, 24 testes passando. BLOQUEADO igual sprint-01 s01-05 / sprint-02: verificação dos acceptance_criteria (fluxo SCHEDULED→IN_PROGRESS→COMPLETED ponta a ponta, atomicidade da comissão) exige NeonDB ativo via .env.local. Após migration+seed, rodar npm run dev e validar.",
   "description": "Implementar o painel exclusivo do barbeiro: agenda diária com linha de tempo ao vivo, fluxo de execução de atendimento (check-in → conclusão → registro de pagamento), cálculo automático de comissões via hierarquia de regras, e dashboard de comissões pessoais.",
 
   "acceptance_criteria": [
@@ -22,7 +23,7 @@
     {
       "id": "s03-01",
       "title": "Lógica de cálculo de comissão (commission.ts)",
-      "status": "pending",
+      "status": "done",
       "details": "Função central de cálculo. Chamada dentro da transaction de conclusão do atendimento. Deve ser testada exaustivamente.",
       "file": "src/lib/utils/commission.ts",
       "function_signature": "calculateCommission(tx: PrismaTransactionClient, appointmentId: string): Promise<Commission>",
@@ -60,7 +61,7 @@
     {
       "id": "s03-02",
       "title": "API Routes do barbeiro — agenda e atendimento",
-      "status": "pending",
+      "status": "done",
       "details": "Endpoints autenticados por role BARBER. CRÍTICO: toda query usa barberId derivado da session, nunca de parâmetro da URL (segurança).",
       "files": [
         "src/app/api/barber/appointments/route.ts",
@@ -101,7 +102,7 @@
     {
       "id": "s03-03",
       "title": "API Routes do barbeiro — comissões e disponibilidade",
-      "status": "pending",
+      "status": "done",
       "details": "Endpoints para dashboard de comissões e gestão de disponibilidade.",
       "files": [
         "src/app/api/barber/commissions/route.ts",
@@ -120,7 +121,7 @@
     {
       "id": "s03-04",
       "title": "Agenda do dia — DailySchedule (/agenda)",
-      "status": "pending",
+      "status": "done",
       "details": "Tela principal do barbeiro. Lista cronológica com linha de tempo ao vivo e ações por status.",
       "files": [
         "src/app/(barber)/agenda/page.tsx",
@@ -157,7 +158,7 @@
     {
       "id": "s03-05",
       "title": "Modal de conclusão de atendimento",
-      "status": "pending",
+      "status": "done",
       "details": "Dialog completo para registrar forma de pagamento, ajustar serviços realizados e confirmar conclusão.",
       "file": "src/components/barber/CompleteModal.tsx",
       "dialog_content": [
@@ -178,7 +179,7 @@
     {
       "id": "s03-06",
       "title": "Dashboard de comissões do barbeiro (/comissoes)",
-      "status": "pending",
+      "status": "done",
       "details": "Tela financeira do barbeiro. Resumo por período e histórico detalhado.",
       "files": [
         "src/app/(barber)/comissoes/page.tsx",
@@ -202,7 +203,7 @@
     {
       "id": "s03-07",
       "title": "Gestão de disponibilidade (/disponibilidade)",
-      "status": "pending",
+      "status": "done",
       "details": "Barbeiro configura horário padrão por dia da semana e adiciona bloqueios pontuais.",
       "files": [
         "src/app/(barber)/disponibilidade/page.tsx",

@@ -1,4 +1,41 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { formatBRL } from '@/lib/utils/format'
+
+type Period = 'today' | 'week' | 'month'
+
+interface CommissionRow {
+  id: string
+  amount: number
+  rate: number
+  status: 'PENDING' | 'PAID'
+  paidAt: string | null
+  createdAt: string
+  appointment: {
+    scheduledAt: string
+    paymentMethod: string | null
+    client: { name: string }
+    services: { service: { name: string } }[]
+  }
+}
+
+interface Summary {
+  totalPending: number
+  totalPaid: number
+  totalAll: number
+}
+
+const PERIODS: { value: Period; label: string }[] = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'week', label: 'Esta semana' },
+  { value: 'month', label: 'Este mês' },
+]
+
+const PAGE_SIZE = 20
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
@@ -9,106 +46,146 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   )
 }
 
-const rows = [
-  { date: '04 jun', client: 'Felipe R.', svc: 'Corte+Barba', value: 'R$ 75', pct: '40%', commission: 'R$ 31,50', status: 'pending' as const },
-  { date: '04 jun', client: 'Diego A.', svc: 'Corte tesoura', value: 'R$ 45', pct: '40%', commission: 'R$ 18,00', status: 'pending' as const },
-  { date: '03 jun', client: 'André S.', svc: 'Barba', value: 'R$ 30', pct: '40%', commission: 'R$ 12,00', status: 'pending' as const },
-  { date: '31 mai', client: 'Carlos M.', svc: 'Corte+Barba', value: 'R$ 75', pct: '40%', commission: 'R$ 31,50', status: 'paid' as const },
-  { date: '29 mai', client: 'João P.', svc: 'Platinado', value: 'R$ 180', pct: '40%', commission: 'R$ 72,00', status: 'paid' as const },
-  { date: '28 mai', client: 'Marcos V.', svc: 'Corte', value: 'R$ 45', pct: '40%', commission: 'R$ 18,00', status: 'paid' as const },
-]
+export default function ComissoesBarberPage() {
+  const [period, setPeriod] = useState<Period>('month')
+  const [rows, setRows] = useState<CommissionRow[]>([])
+  const [summary, setSummary] = useState<Summary>({ totalPending: 0, totalPaid: 0, totalAll: 0 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [page, setPage] = useState(0)
 
-const spark = [30, 45, 28, 60, 52, 70, 48, 66]
+  const load = useCallback((p: Period) => {
+    setLoading(true)
+    setError(false)
+    setPage(0)
+    fetch(`/api/barber/commissions?period=${p}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => {
+        setRows(data.commissions)
+        setSummary(data.summary)
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false))
+  }, [])
 
-export default function ComissoesBarbelroPage() {
+  useEffect(() => {
+    load(period)
+  }, [period, load])
+
+  const totalPages = Math.ceil(rows.length / PAGE_SIZE)
+  const pageRows = rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+  const avgRate = rows.length ? rows.reduce((s, r) => s + r.rate, 0) / rows.length : 0
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
         <div>
           <div className="font-bold text-[19px] text-primary">Minhas comissões</div>
-          <div className="text-[13px] text-textMuted">Rafael · período: Junho 2026</div>
+          <div className="text-[13px] text-textMuted">
+            Período: {PERIODS.find((p) => p.value === period)?.label}
+          </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {['Mai', 'Jun', 'Personalizado'].map((t, i) => (
-            <span key={t} className={`text-xs font-semibold px-3 py-1 rounded-full border cursor-pointer ${
-              i === 1 ? 'bg-primary text-white border-primary' : 'bg-white text-textMuted border-line hover:border-accent/40'
-            }`}>
-              {t}
-            </span>
+          {PERIODS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={`text-xs font-semibold px-3 py-1 rounded-full border transition-colors ${
+                period === p.value
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-white text-textMuted border-line hover:border-accent/40'
+              }`}
+            >
+              {p.label}
+            </button>
           ))}
-          <button className="text-xs border border-line px-3 py-1.5 rounded-lg hover:bg-fill transition-colors ml-1">
-            ↓ Extrato
-          </button>
         </div>
       </div>
 
       <div className="p-4 flex flex-col gap-3.5 overflow-auto">
         {/* KPIs */}
         <div className="flex gap-3">
-          <Stat label="A receber (pendente)" value="R$ 61,50" color="text-accent-deep" />
-          <Stat label="Já pago · mês" value="R$ 121,50" color="text-success" />
-          <Stat label="Atendimentos" value="6" />
-          <Stat label="Taxa média" value="40%" />
+          <Stat label="A receber (pendente)" value={formatBRL(summary.totalPending)} color="text-accent-deep" />
+          <Stat label="Já pago" value={formatBRL(summary.totalPaid)} color="text-success" />
+          <Stat label="Atendimentos" value={String(rows.length)} />
+          <Stat label="Taxa média" value={`${Math.round(avgRate * 100)}%`} />
         </div>
 
-        <div className="grid grid-cols-[1.6fr_1fr] gap-3.5">
-          {/* Table */}
-          <div className="border border-line rounded-xl bg-white overflow-hidden">
-            <div className="grid grid-cols-[0.7fr_1.1fr_1.1fr_0.7fr_0.5fr_0.8fr_0.7fr] px-3 py-2 border-b border-line">
-              {['DATA', 'CLIENTE', 'SERVIÇO', 'VALOR', '%', 'COMISSÃO', 'STATUS'].map((h) => (
-                <span key={h} className="font-mono text-[9px] text-textDisabled tracking-wide">{h}</span>
-              ))}
-            </div>
-            {rows.map((row, i) => (
-              <div
-                key={i}
-                className={`grid grid-cols-[0.7fr_1.1fr_1.1fr_0.7fr_0.5fr_0.8fr_0.7fr] items-center px-3 py-2.5 border-b border-fill text-[12.5px] ${
-                  i % 2 ? 'bg-fill-soft' : 'bg-white'
-                }`}
-              >
-                <span className="text-textMuted">{row.date}</span>
-                <span className="font-bold">{row.client}</span>
-                <span className="text-textMuted">{row.svc}</span>
-                <span>{row.value}</span>
-                <span className="text-textMuted">{row.pct}</span>
-                <span className="font-bold text-accent-deep">{row.commission}</span>
-                <span><StatusBadge status={row.status} /></span>
-              </div>
+        {/* Tabela */}
+        <div className="border border-line rounded-xl bg-white overflow-hidden">
+          <div className="grid grid-cols-[0.7fr_1.1fr_1.2fr_0.8fr_0.5fr_0.8fr_0.9fr] px-3 py-2 border-b border-line">
+            {['DATA', 'CLIENTE', 'SERVIÇO', 'PAGAMENTO', '%', 'COMISSÃO', 'STATUS'].map((h) => (
+              <span key={h} className="font-mono text-[9px] text-textDisabled tracking-wide">
+                {h}
+              </span>
             ))}
           </div>
 
-          {/* Right panel */}
-          <div className="flex flex-col gap-3.5">
-            {/* Sparkline */}
-            <div className="border border-line rounded-xl bg-white p-3.5">
-              <p className="text-[10px] font-semibold tracking-widest uppercase text-textMuted mb-2">
-                Evolução · 8 semanas
-              </p>
-              <div className="flex items-end gap-2 h-24">
-                {spark.map((h, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-t border border-line"
-                    style={{
-                      height: `${h}%`,
-                      background: i === spark.length - 1 ? '#D4830A' : '#FBEDD6',
-                    }}
-                  />
-                ))}
-              </div>
+          {loading && (
+            <div className="p-3 flex flex-col gap-2">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-8 rounded bg-fill animate-pulse" />
+              ))}
             </div>
+          )}
 
-            {/* Next payment */}
-            <div className="border border-accent rounded-xl bg-accent-soft p-3.5">
-              <p className="text-[10px] font-semibold tracking-widest uppercase text-textMuted mb-1">
-                Próximo pagamento
-              </p>
-              <div className="font-bold text-[26px] text-accent-deep">R$ 61,50</div>
-              <p className="text-[15px] text-accent-deep mt-0.5">fecha sexta · 06 jun</p>
-            </div>
-          </div>
+          {!loading && error && (
+            <p className="text-center text-sm text-textMuted py-8">Erro ao carregar comissões.</p>
+          )}
+
+          {!loading && !error && rows.length === 0 && (
+            <p className="text-center text-sm text-textMuted py-8">Nenhuma comissão no período selecionado.</p>
+          )}
+
+          {!loading &&
+            !error &&
+            pageRows.map((row, i) => (
+              <div
+                key={row.id}
+                className={`grid grid-cols-[0.7fr_1.1fr_1.2fr_0.8fr_0.5fr_0.8fr_0.9fr] items-center px-3 py-2.5 border-b border-fill text-[12.5px] ${
+                  i % 2 ? 'bg-fill-soft' : 'bg-white'
+                }`}
+              >
+                <span className="text-textMuted">
+                  {format(new Date(row.appointment.scheduledAt), 'dd MMM', { locale: ptBR })}
+                </span>
+                <span className="font-bold truncate">{row.appointment.client.name}</span>
+                <span className="text-textMuted truncate">
+                  {row.appointment.services.map((s) => s.service.name).join(', ')}
+                </span>
+                <span className="text-textMuted">{row.appointment.paymentMethod ?? '—'}</span>
+                <span className="text-textMuted">{Math.round(row.rate * 100)}%</span>
+                <span className="font-bold text-accent-deep">{formatBRL(row.amount)}</span>
+                <span>
+                  <StatusBadge status={row.status === 'PAID' ? 'paid' : 'pending'} />
+                </span>
+              </div>
+            ))}
         </div>
+
+        {/* Paginação */}
+        {!loading && !error && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3 text-[13px]">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-3 py-1.5 rounded-lg border border-line disabled:opacity-40 hover:bg-fill transition-colors"
+            >
+              ‹ Anterior
+            </button>
+            <span className="text-textMuted">
+              {page + 1} de {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="px-3 py-1.5 rounded-lg border border-line disabled:opacity-40 hover:bg-fill transition-colors"
+            >
+              Próximo ›
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

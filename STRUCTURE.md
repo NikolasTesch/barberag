@@ -1,16 +1,19 @@
 # Estrutura de Pastas — BARBERAG
 
 > **Esta é a estrutura-alvo (full-stack).** Para o que já está implementado hoje, veja
-> `docs/HANDOFF_STATUS.md` — todas as telas do handoff de design estão prontas; a camada de
-> backend (`api/`, `lib/auth`, `lib/validations`, `lib/notifications`, `hooks`, `store`) ainda
-> é scaffolding vazio. Algumas rotas de admin usam sufixo `-admin` na URL (ver abaixo) para
-> evitar colisão de route-groups do App Router.
+> `docs/HANDOFF_STATUS.md`. Todas as telas do handoff de design estão prontas e a camada de
+> backend **já está implementada** (sprints 01–05): API Routes, NextAuth com isolamento por
+> role, `lib/utils` (`slots`/`commission`, com testes), `lib/validations` (Zod) e
+> `lib/notifications`. Esta árvore lista a topologia-alvo; alguns nomes de arquivo divergem do
+> que foi de fato extraído (ver notas em `barber/` e `ui/`). Algumas rotas de admin usam sufixo
+> `-admin` na URL (ver abaixo) para evitar colisão de route-groups do App Router.
 
 ```
 barberag/
 ├── prisma/
 │   ├── schema.prisma          # Schema do banco de dados
-│   └── seed.ts                # Dados iniciais (admin, serviços padrão)
+│   ├── seed.ts                # Dados iniciais (admin, barbeiros, serviços, agendamentos)
+│   └── tsconfig.seed.json     # tsconfig dedicado p/ rodar o seed via ts-node (CommonJS)
 │
 ├── public/
 │   └── images/                # Assets estáticos (logo, og-image)
@@ -61,56 +64,63 @@ barberag/
 │   │   │   ├── agendamentos-admin/   # sufixo -admin evita colisão de route-group
 │   │   │   │   └── page.tsx   # Visão geral todos os agendamentos
 │   │   │   ├── barbeiros/
-│   │   │   │   └── page.tsx   # Listagem (CRUD novo/[id] = pendente)
+│   │   │   │   ├── page.tsx   # Listagem
+│   │   │   │   ├── novo/page.tsx
+│   │   │   │   └── [id]/page.tsx     # CRUD completo
 │   │   │   ├── servicos/
-│   │   │   │   └── page.tsx   # Listagem (CRUD novo/[id] = pendente)
+│   │   │   │   ├── page.tsx
+│   │   │   │   ├── novo/page.tsx
+│   │   │   │   └── [id]/page.tsx     # CRUD completo
 │   │   │   ├── comissoes-admin/      # sufixo -admin evita colisão de route-group
 │   │   │   │   └── page.tsx   # Gestão e fechamento de comissões
 │   │   │   ├── clientes-admin/       # sufixo -admin evita colisão de route-group
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── [id]/page.tsx
+│   │   │   ├── avaliacoes-admin/     # moderação de avaliações
+│   │   │   │   └── page.tsx
+│   │   │   ├── configuracoes/        # config da barbearia (/api/admin/config)
 │   │   │   │   └── page.tsx
 │   │   │   ├── relatorios/
 │   │   │   │   └── page.tsx
 │   │   │   └── layout.tsx     # Guard: redirect se não for ADMIN
 │   │   │
-│   │   └── api/               # API Routes (backend)
+│   │   ├── avaliar/[token]/   # Avaliação pública pós-atendimento (sem auth, via token)
+│   │   │   └── page.tsx
+│   │   │
+│   │   └── api/               # API Routes (backend) — namespaced por role
 │   │       ├── auth/
-│   │       │   └── [...nextauth]/route.ts
-│   │       ├── appointments/
-│   │       │   ├── route.ts            # GET (listar) / POST (criar)
-│   │       │   ├── [id]/route.ts       # GET / PATCH / DELETE
-│   │       │   ├── [id]/checkin/route.ts
-│   │       │   └── [id]/complete/route.ts
-│   │       ├── barbers/
+│   │       │   ├── [...nextauth]/route.ts
+│   │       │   └── register/route.ts
+│   │       ├── appointments/          # agendamento (cliente)
+│   │       │   ├── route.ts            # GET (listar) / POST (criar — anti double-booking)
+│   │       │   └── [id]/route.ts
+│   │       ├── barbers/               # público: lista + disponibilidade p/ agendar
 │   │       │   ├── route.ts
-│   │       │   ├── [id]/route.ts
 │   │       │   └── [id]/availability/route.ts
-│   │       ├── services/
-│   │       │   ├── route.ts
-│   │       │   └── [id]/route.ts
-│   │       ├── commissions/
-│   │       │   ├── route.ts
-│   │       │   ├── rules/route.ts
-│   │       │   └── pay/route.ts
-│   │       ├── clients/
-│   │       │   ├── route.ts
-│   │       │   └── [id]/route.ts
-│   │       ├── metrics/
-│   │       │   ├── overview/route.ts
-│   │       │   ├── revenue/route.ts
-│   │       │   └── barbers/route.ts
-│   │       └── cron/
+│   │       ├── barber/                # painel do barbeiro (role BARBER, barberId via sessão)
+│   │       │   ├── appointments/route.ts
+│   │       │   ├── appointments/[id]/checkin/route.ts
+│   │       │   ├── appointments/[id]/complete/route.ts
+│   │       │   ├── commissions/route.ts
+│   │       │   └── availability/route.ts
+│   │       ├── admin/                 # painel admin (role ADMIN)
+│   │       │   ├── barbers/[route.ts, [id]/route.ts]
+│   │       │   ├── services/[route.ts, [id]/route.ts]
+│   │       │   ├── clients/[route.ts, [id]/route.ts]
+│   │       │   ├── commissions/[route.ts, pay/route.ts, rules/route.ts, rules/[id]/route.ts]
+│   │       │   ├── metrics/[overview, revenue, barbers, export]/route.ts
+│   │       │   ├── occupancy/route.ts
+│   │       │   ├── reviews/[route.ts, [id]/route.ts]
+│   │       │   └── config/route.ts
+│   │       ├── reviews/route.ts       # submissão pública de avaliação (via token)
+│   │       └── cron/                  # autenticados via CRON_SECRET (RN-07)
 │   │           ├── reminders-24h/route.ts
 │   │           └── reminders-2h/route.ts
 │   │
 │   ├── components/
-│   │   ├── ui/                # Componentes base (shadcn/ui — gerados)
-│   │   │   ├── button.tsx
-│   │   │   ├── card.tsx
-│   │   │   ├── input.tsx
-│   │   │   ├── dialog.tsx
-│   │   │   ├── calendar.tsx
-│   │   │   ├── badge.tsx
-│   │   │   └── ...
+│   │   ├── ui/                # Componentes base (shadcn/ui)
+│   │   │   ├── badge.tsx      # hoje só badge + button foram gerados; demais primitivos
+│   │   │   └── button.tsx     # (card, input, dialog, calendar…) ainda via `npx shadcn add`
 │   │   │
 │   │   ├── shared/            # Componentes reutilizáveis entre módulos
 │   │   │   ├── AppointmentCard.tsx
@@ -141,10 +151,9 @@ barberag/
 │   │   │   └── StepIndicator.tsx
 │   │   │
 │   │   ├── barber/            # Painel do barbeiro
-│   │   │   ├── DailySchedule.tsx
-│   │   │   ├── AppointmentAction.tsx
-│   │   │   ├── CommissionSummary.tsx
-│   │   │   └── AvailabilityEditor.tsx
+│   │   │   └── CompleteModal.tsx   # único componente extraído; as telas /agenda,
+│   │   │       # /comissoes e /disponibilidade foram construídas inline nas próprias
+│   │   │       # page.tsx (DailySchedule/AppointmentAction/etc. da spec não viraram arquivos)
 │   │   │
 │   │   ├── dashboard/         # Dashboard admin
 │   │   │   ├── KPICard.tsx
@@ -164,34 +173,34 @@ barberag/
 │   │   │   └── client.ts      # Singleton do PrismaClient
 │   │   ├── auth/
 │   │   │   ├── config.ts      # NextAuth config (providers, callbacks)
-│   │   │   └── helpers.ts     # getServerSession wrapper
+│   │   │   ├── config.base.ts # config base reutilizável (sem adapter)
+│   │   │   ├── helpers.ts     # getServerSession wrapper
+│   │   │   ├── admin.ts       # guard getSessionAdmin (role ADMIN)
+│   │   │   └── barber.ts      # guard getSessionBarber (deriva barberId da sessão)
 │   │   ├── validations/       # Schemas Zod (compartilhados front/back)
-│   │   │   ├── appointment.ts
-│   │   │   ├── barber.ts
-│   │   │   ├── service.ts
-│   │   │   ├── commission.ts
-│   │   │   └── client.ts
+│   │   │   ├── appointment.ts ├── auth.ts        ├── availability.ts
+│   │   │   ├── barber.ts      ├── commission.ts  ├── config.ts
+│   │   │   ├── review.ts      └── service.ts
 │   │   ├── notifications/
-│   │   │   ├── whatsapp.ts    # Evolution API wrapper
-│   │   │   └── email.ts       # Resend wrapper
-│   │   └── utils/
-│   │       ├── slots.ts       # Lógica de geração de slots disponíveis
-│   │       ├── commission.ts  # Cálculo de comissão (RN-04)
-│   │       ├── date.ts        # Helpers de data (date-fns)
-│   │       └── cn.ts          # classnames helper (shadcn)
-│   │
-│   ├── hooks/                 # React hooks customizados
-│   │   ├── useAppointments.ts
-│   │   ├── useAvailability.ts
-│   │   ├── useCommissions.ts
-│   │   └── useMetrics.ts
+│   │   │   ├── whatsapp.ts    # Evolution API wrapper (+ __tests__/)
+│   │   │   ├── email.ts       # Resend wrapper
+│   │   │   ├── templates.ts   # templates de mensagem
+│   │   │   └── reminders.ts   # lógica dos lembretes (consumida pelos crons)
+│   │   ├── utils/
+│   │   │   ├── slots.ts       # Geração de slots disponíveis (+ __tests__/)
+│   │   │   ├── commission.ts  # Cálculo de comissão RN-04 (+ __tests__/)
+│   │   │   ├── period.ts      # Helpers de período (hoje|semana|mês)
+│   │   │   ├── format.ts      # Formatação (moeda, data)
+│   │   │   └── cn.ts          # classnames helper (shadcn)
+│   │   ├── landing.ts         # Dados/queries da landing page
+│   │   ├── reports.ts         # Geração de relatórios (admin)
+│   │   └── reports.constants.ts
 │   │
 │   ├── store/                 # Zustand stores
-│   │   ├── bookingStore.ts    # Estado do fluxo de agendamento
-│   │   └── uiStore.ts         # Estado de UI (modais, sidebar)
+│   │   └── bookingStore.ts    # Estado do fluxo de agendamento
 │   │
 │   └── types/
-│       └── index.ts           # Types globais e enums
+│       └── next-auth.d.ts     # Augmentação de tipos da sessão (role, barberId)
 │
 ├── specs/
 │   ├── pending/               # Tasks aguardando execução

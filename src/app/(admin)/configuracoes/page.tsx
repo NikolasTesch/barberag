@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, CheckCircle2 } from 'lucide-react'
@@ -119,7 +119,7 @@ export default function ConfiguracoesPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <div className="font-bold text-[19px] text-primary">Configurações</div>
       </div>
 
@@ -134,7 +134,7 @@ export default function ConfiguracoesPage() {
               <div className="border border-error/30 bg-error/5 text-error rounded-lg px-4 py-2.5 text-sm">{error}</div>
             )}
 
-            <section className="border border-line rounded-xl bg-white p-4 grid grid-cols-2 gap-3">
+            <section className="border border-line rounded-xl bg-white p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <h3 className="col-span-2 text-[11px] font-semibold tracking-widest uppercase text-textMuted">Dados da empresa</h3>
               <div className="col-span-2">
                 <FieldLabel>Nome *</FieldLabel>

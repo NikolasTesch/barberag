@@ -54,7 +54,7 @@ export default async function ClientProfilePage({ params }: { params: { id: stri
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <Link href="/clientes-admin" className="text-textMuted hover:text-primary">
           <ChevronLeft size={20} />
         </Link>
@@ -63,7 +63,7 @@ export default async function ClientProfilePage({ params }: { params: { id: stri
 
       <div className="p-4 flex flex-col gap-3.5 overflow-auto">
         {/* Dados + stats */}
-        <div className="grid grid-cols-[1.2fr_2fr] gap-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-[1.2fr_2fr] gap-3.5">
           <div className="border border-line rounded-xl bg-white p-4 flex flex-col items-center text-center">
             <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg overflow-hidden mb-2">
               {client.image ? (
@@ -81,7 +81,7 @@ export default async function ClientProfilePage({ params }: { params: { id: stri
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
             {[
               { label: 'Total gasto', value: formatBRL(totalSpent), accent: true },
               { label: 'Visitas', value: String(completed.length) },

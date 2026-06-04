@@ -109,7 +109,7 @@ export function ServiceForm({ barbers, mode, serviceId, initial }: ServiceFormPr
         <div className="border border-error/30 bg-error/5 text-error rounded-lg px-4 py-2.5 text-sm">{error}</div>
       )}
 
-      <section className="border border-line rounded-xl bg-white p-4 grid grid-cols-2 gap-3">
+      <section className="border border-line rounded-xl bg-white p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="col-span-2">
           <FieldLabel>Nome *</FieldLabel>
           <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required />

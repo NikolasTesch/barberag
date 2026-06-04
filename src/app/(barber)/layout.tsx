@@ -5,7 +5,7 @@ export default async function BarberLayout({ children }: { children: React.React
   const session = await requireAuth('BARBER')
 
   return (
-    <div className="flex h-screen overflow-hidden bg-fill-soft font-sans">
+    <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-fill-soft font-sans">
       <BarberNav user={{ name: session.user.name ?? 'Barbeiro' }} />
       <main className="flex-1 overflow-auto">{children}</main>
     </div>

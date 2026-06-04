@@ -1,10 +1,10 @@
-import Link from 'next/link'
+﻿import Link from 'next/link'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 
 export default function AtendimentoListPage() {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <div className="font-bold text-[19px] text-primary">Atendimentos de hoje</div>
       </div>
       <div className="p-4 flex flex-col gap-2.5">

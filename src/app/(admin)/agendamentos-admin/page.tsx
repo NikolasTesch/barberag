@@ -22,12 +22,12 @@ const APPOINTMENTS = [
 export default function AgendamentosAdminPage() {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <div>
           <div className="font-bold text-[19px] text-primary">Agendamentos</div>
           <div className="text-[13px] text-textMuted">Quinta, 04 jun · todos os barbeiros</div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {['Hoje', 'Semana', 'Mês'].map((t, i) => (
             <span key={t} className={`text-xs font-semibold px-3 py-1 rounded-full border cursor-pointer ${
               i === 0 ? 'bg-primary text-white border-primary' : 'bg-white text-textMuted border-line hover:border-accent/40'
@@ -42,7 +42,7 @@ export default function AgendamentosAdminPage() {
       </div>
 
       <div className="p-4 flex flex-col gap-3.5 overflow-auto">
-        <div className="flex gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Stat label="Total do dia" value="8" />
           <Stat label="Concluídos" value="3" color="text-success" />
           <Stat label="Em andamento" value="1" color="text-warning" />
@@ -50,6 +50,8 @@ export default function AgendamentosAdminPage() {
         </div>
 
         <div className="border border-line rounded-xl bg-white overflow-hidden">
+          <div className="overflow-x-auto">
+          <div className="min-w-[620px]">
           <div
             className="grid px-3.5 py-2 border-b border-line font-mono text-[9px] text-textDisabled tracking-wide"
             style={{ gridTemplateColumns: '0.6fr 1.2fr 1fr 1.2fr 0.7fr 1fr' }}
@@ -75,6 +77,8 @@ export default function AgendamentosAdminPage() {
               <span><StatusBadge status={a.status} /></span>
             </div>
           ))}
+          </div>
+          </div>
         </div>
       </div>
     </div>

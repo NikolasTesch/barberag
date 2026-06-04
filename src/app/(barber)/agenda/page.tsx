@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { addDays, format, isToday } from 'date-fns'
@@ -40,7 +40,7 @@ const borderTone: Record<Status, string> = {
 
 function MainHead({ title, sub, right }: { title: string; sub?: string; right?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+    <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
       <div>
         <div className="font-bold text-[19px] text-primary capitalize">{title}</div>
         {sub && <div className="text-[13px] text-textMuted">{sub}</div>}
@@ -178,7 +178,7 @@ export default function AgendaPage() {
 
       <div className="p-[18px] flex flex-col gap-3.5 overflow-auto">
         {/* KPIs */}
-        <div className="flex gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Stat label="Atendimentos" value={String(items.length)} />
           <Stat label="Concluídos" value={String(completed)} color="text-success" />
           <Stat label="Faturamento Prev." value={formatBRL(expected)} color="text-accent-deep" />

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -66,7 +66,7 @@ export default function ServicosPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <div>
           <div className="font-bold text-[19px] text-primary">Serviços</div>
           <div className="text-[13px] text-textMuted">Catálogo da barbearia</div>
@@ -98,6 +98,8 @@ export default function ServicosPage() {
         )}
 
         <div className="border border-line rounded-xl bg-white overflow-hidden">
+          <div className="overflow-x-auto">
+          <div className="min-w-[760px]">
           <div
             className="grid px-3.5 py-2 border-b border-line font-mono text-[9px] text-textDisabled tracking-wide uppercase"
             style={{ gridTemplateColumns: '2fr 1fr 0.8fr 0.9fr 0.8fr 0.7fr 1.2fr' }}
@@ -155,6 +157,8 @@ export default function ServicosPage() {
               </div>
             ))
           )}
+          </div>
+          </div>
         </div>
       </div>
     </div>

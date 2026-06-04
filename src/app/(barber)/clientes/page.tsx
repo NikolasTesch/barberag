@@ -1,4 +1,4 @@
-const CLIENTS = [
+﻿const CLIENTS = [
   { initials: 'FR', name: 'Felipe Ramos', phone: '(11) 9 8888-7777', visits: 12, last: '20 mai' },
   { initials: 'CM', name: 'Carlos Mendes', phone: '(11) 9 7777-6666', visits: 8, last: '31 mai' },
   { initials: 'JP', name: 'João Paulo', phone: '(11) 9 6666-5555', visits: 5, last: '02 mai' },
@@ -8,7 +8,7 @@ const CLIENTS = [
 export default function BarberClientesPage() {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <div>
           <div className="font-bold text-[19px] text-primary">Meus clientes</div>
           <div className="text-[13px] text-textMuted">Clientes que você já atendeu</div>
@@ -18,7 +18,7 @@ export default function BarberClientesPage() {
         </span>
       </div>
 
-      <div className="p-4 grid grid-cols-2 gap-3 overflow-auto">
+      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-auto">
         {CLIENTS.map((c) => (
           <div key={c.name} className="flex items-center gap-3 p-3.5 bg-white border border-line rounded-xl">
             <div className="w-[42px] h-[42px] rounded-full bg-primary text-white flex items-center justify-center font-bold flex-shrink-0">

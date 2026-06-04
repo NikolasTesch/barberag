@@ -30,7 +30,7 @@ export default async function EditBarbeiroPage({ params }: { params: { id: strin
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <Link href="/barbeiros" className="text-textMuted hover:text-primary">
           <ChevronLeft size={20} />
         </Link>

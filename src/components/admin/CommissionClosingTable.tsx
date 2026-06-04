@@ -175,6 +175,8 @@ export function CommissionClosingTable({
 
             {isOpen && (
               <div className="border-t border-line">
+                <div className="overflow-x-auto">
+                <div className="min-w-[480px]">
                 <div
                   className="grid px-3.5 py-2 font-mono text-[9px] text-textDisabled tracking-wide uppercase border-b border-fill"
                   style={{ gridTemplateColumns: '0.9fr 1.6fr 0.9fr 0.5fr 0.8fr' }}
@@ -201,6 +203,8 @@ export function CommissionClosingTable({
                     <span className="text-right font-bold text-accent-deep">{formatBRL(c.amount)}</span>
                   </div>
                 ))}
+                </div>
+                </div>
                 <div className="flex items-center gap-3 px-3.5 py-3 bg-fill-soft">
                   <span className="flex-1 text-[13px] font-semibold">Total pendente</span>
                   <span className="font-bold text-[16px] text-accent-deep">{formatBRL(g.total)}</span>

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import { format } from 'date-fns'
@@ -79,7 +79,7 @@ export default function ComissoesBarberPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <div>
           <div className="font-bold text-[19px] text-primary">Minhas comissões</div>
           <div className="text-[13px] text-textMuted">
@@ -105,7 +105,7 @@ export default function ComissoesBarberPage() {
 
       <div className="p-4 flex flex-col gap-3.5 overflow-auto">
         {/* KPIs */}
-        <div className="flex gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Stat label="A receber (pendente)" value={formatBRL(summary.totalPending)} color="text-accent-deep" />
           <Stat label="Já pago" value={formatBRL(summary.totalPaid)} color="text-success" />
           <Stat label="Atendimentos" value={String(rows.length)} />
@@ -114,6 +114,8 @@ export default function ComissoesBarberPage() {
 
         {/* Tabela */}
         <div className="border border-line rounded-xl bg-white overflow-hidden">
+          <div className="overflow-x-auto">
+          <div className="min-w-[680px]">
           <div className="grid grid-cols-[0.7fr_1.1fr_1.2fr_0.8fr_0.5fr_0.8fr_0.9fr] px-3 py-2 border-b border-line">
             {['DATA', 'CLIENTE', 'SERVIÇO', 'PAGAMENTO', '%', 'COMISSÃO', 'STATUS'].map((h) => (
               <span key={h} className="font-mono text-[9px] text-textDisabled tracking-wide">
@@ -162,6 +164,8 @@ export default function ComissoesBarberPage() {
                 </span>
               </div>
             ))}
+          </div>
+          </div>
         </div>
 
         {/* Paginação */}

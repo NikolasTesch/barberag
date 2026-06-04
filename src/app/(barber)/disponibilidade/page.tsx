@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
@@ -149,7 +149,7 @@ export default function DisponibilidadePage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <div>
           <div className="font-bold text-[19px] text-primary">Disponibilidade</div>
           <div className="text-[13px] text-textMuted">Defina sua grade semanal e bloqueios pontuais</div>

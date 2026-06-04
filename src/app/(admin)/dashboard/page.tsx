@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import { KPICard } from '@/components/dashboard/KPICard'
@@ -102,7 +102,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <div>
           <div className="font-bold text-[19px] text-primary">Dashboard</div>
           <div className="text-[13px] text-textMuted">Métricas em tempo real · atualizado a cada atendimento</div>
@@ -166,7 +166,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Charts row */}
-        <div className="grid grid-cols-[1.5fr_1fr] gap-3.5">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-3.5">
           <Panel title="Faturamento no período">
             {loading ? (
               <div className="h-[300px] bg-fill/40 rounded animate-pulse" />

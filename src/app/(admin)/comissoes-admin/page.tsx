@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, CheckCircle2 } from 'lucide-react'
@@ -59,7 +59,7 @@ export default function ComissoesAdminPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-[22px] py-4 border-b border-line bg-white">
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-[22px] py-4 border-b border-line bg-white">
         <div>
           <div className="font-bold text-[19px] text-primary">Comissões</div>
           <div className="text-[13px] text-textMuted">Fechamento e regras de comissão</div>

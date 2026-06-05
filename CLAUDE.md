@@ -268,3 +268,25 @@ Cliente escolhe serviços → barbeiro → data/hora → confirma
                                                       ↓
                               Admin fecha comissões (PAID)
 ```
+
+---
+
+## Como Trabalhar Aqui — Subagentes & Fluxo
+
+Delegue para os subagentes em `.claude/agents/` seguindo o fluxo
+**arquiteto → implementador → revisor → testador**. Não pule etapas em features não-triviais.
+
+| Agente | Quando usar | Escreve código? |
+|--------|-------------|-----------------|
+| `arquiteto` | Início de toda feature/regra de negócio — desenha solução + ADR curto | Não |
+| `implementador` | Executa o plano: código + testes + atualiza spec/docs | Sim |
+| `revisor` | Antes do merge: audita o diff (bugs, segurança, padrões) | Não (só aponta) |
+| `testador` | Cobre e valida bordas do agendamento; roda a suíte vitest | Só testes |
+
+**Disparo:** ao receber "implemente a feature X", delegue ao `arquiteto` para o plano,
+passe o plano ao `implementador`, então rode `revisor` e `testador` sobre o resultado.
+Cada agente lê este `CLAUDE.md` e respeita as regras RN-01..RN-07, o workflow SDD
+(`specs/active/`) e os padrões de código acima.
+
+Referências técnicas: `docs/tech.md` (arquitetura, ADRs, ambiente), `STRUCTURE.md` (topologia),
+`PRD.md` (regras de negócio), `DESIGN_SYSTEM.md` (tokens visuais).

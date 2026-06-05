@@ -3,6 +3,7 @@ import { startOfDay, endOfDay } from 'date-fns'
 import { prisma } from '@/lib/prisma/client'
 import { getServerSession } from '@/lib/auth/helpers'
 import { AppointmentActionSchema } from '@/lib/validations/appointment'
+import { isSlotWithinSchedule } from '@/lib/utils/slots'
 
 class SlotConflictError extends Error {}
 
@@ -75,6 +76,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           return newScheduledAt.getTime() < aEnd && endAt.getTime() > aStart
         })
         if (conflict) throw new SlotConflictError()
+
+        // Horário de trabalho + bloqueios também valem no reagendamento (RN-01).
+        if (!(await isSlotWithinSchedule(tx, newBarberId, newScheduledAt, endAt))) {
+          throw new SlotConflictError()
+        }
 
         return tx.appointment.update({
           where: { id: appointment.id },

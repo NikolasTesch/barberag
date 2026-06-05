@@ -35,19 +35,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (serviceIds && serviceIds.length > 0) {
         const services = await tx.service.findMany({ where: { id: { in: serviceIds } } })
         if (services.length !== serviceIds.length) throw new Error('INVALID_SERVICE')
-        await tx.appointmentService.deleteMany({ where: { appointmentId: appointment.id } })
-        await tx.appointmentService.createMany({
-          data: services.map((s) => ({
-            appointmentId: appointment.id,
-            serviceId: s.id,
-            price: s.basePrice,
-            duration: s.durationMinutes,
-          })),
+
+        // Preço efetivo por serviço: override do barbeiro (customPrice) ou basePrice.
+        const overrides = await tx.barberService.findMany({
+          where: { barberId: appointment.barberId, serviceId: { in: serviceIds } },
+          select: { serviceId: true, customPrice: true },
         })
+        const priceMap = new Map(overrides.map((o) => [o.serviceId, o.customPrice]))
+        const lineItems = services.map((s) => ({
+          appointmentId: appointment.id,
+          serviceId: s.id,
+          price: priceMap.get(s.id) ?? s.basePrice,
+          duration: s.durationMinutes,
+        }))
+
+        await tx.appointmentService.deleteMany({ where: { appointmentId: appointment.id } })
+        await tx.appointmentService.createMany({ data: lineItems })
         await tx.appointment.update({
           where: { id: appointment.id },
           data: {
-            totalPrice: services.reduce((a, s) => a + s.basePrice, 0),
+            totalPrice: lineItems.reduce((a, li) => a + li.price, 0),
             totalDuration: services.reduce((a, s) => a + s.durationMinutes, 0),
           },
         })

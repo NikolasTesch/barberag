@@ -18,9 +18,27 @@ export interface CommissionContext {
 }
 
 /**
+ * Especificidade ponderada de uma regra (RN-03). Cada dimensão vale mais que a
+ * soma das menos significativas, então a ordem é TOTAL e determinística —
+ * barbeiro (4) > serviço (2) > pagamento (1) — sem empates entre conjuntos de
+ * campos diferentes. Espelha a ordem documentada: barbeiro+serviço+pagamento (7)
+ * > barbeiro+serviço (6) > barbeiro (4) > padrão (0).
+ *
+ * É calculada a partir dos campos da própria regra, NÃO do `priority` persistido,
+ * para que a seleção continue correta mesmo que a coluna esteja defasada.
+ */
+export function ruleSpecificity(rule: {
+  barberId: string | null
+  serviceId: string | null
+  paymentMethod: PaymentMethod | null
+}): number {
+  return (rule.barberId !== null ? 4 : 0) + (rule.serviceId !== null ? 2 : 0) + (rule.paymentMethod !== null ? 1 : 0)
+}
+
+/**
  * Núcleo puro da hierarquia de comissão (RN-03). Recebe as regras e o contexto
  * do atendimento e devolve a taxa vencedora + a regra aplicada. Campos nulos na
- * regra atuam como curinga; vence a regra de MAIOR `priority` que casa.
+ * regra atuam como curinga; vence a regra de MAIOR especificidade que casa.
  *
  * Reutilizado por `calculateCommission` (persistência) e pelo simulador da UI —
  * garante que preview e cálculo real nunca divirjam.
@@ -36,7 +54,7 @@ export function selectCommissionRate(
       const paymentOk = rule.paymentMethod === null || rule.paymentMethod === ctx.paymentMethod
       return barberOk && serviceOk && paymentOk
     })
-    .sort((a, b) => b.priority - a.priority)
+    .sort((a, b) => ruleSpecificity(b) - ruleSpecificity(a))
 
   const winner = matching[0] ?? null
   return { rate: winner?.rate ?? DEFAULT_COMMISSION_RATE, rule: winner }

@@ -23,6 +23,7 @@ export async function POST(req: Request) {
       clientId: true,
       barberId: true,
       scheduledAt: true,
+      completedAt: true,
       review: { select: { id: true } },
     },
   })
@@ -33,7 +34,10 @@ export async function POST(req: Request) {
   if (appointment.review) {
     return Response.json({ error: 'Este atendimento já foi avaliado' }, { status: 409 })
   }
-  if (Date.now() - appointment.scheduledAt.getTime() > SEVENTY_TWO_HOURS_MS) {
+  // O link é enviado na conclusão; a janela de 72h conta a partir do completedAt
+  // (fallback p/ scheduledAt apenas se, por algum motivo, não houver completedAt).
+  const reference = appointment.completedAt ?? appointment.scheduledAt
+  if (Date.now() - reference.getTime() > SEVENTY_TWO_HOURS_MS) {
     return Response.json({ error: 'Link expirado' }, { status: 410 })
   }
 

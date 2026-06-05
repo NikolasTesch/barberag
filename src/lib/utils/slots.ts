@@ -1,12 +1,12 @@
 import { startOfDay, endOfDay } from 'date-fns'
-import type { DayOfWeek } from '@prisma/client'
+import type { DayOfWeek, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma/client'
 
 /** Passo da grade de horários, em minutos. */
 export const SLOT_STEP_MINUTES = 15
 
 /** date.getDay() (0=Dom) → enum DayOfWeek do Prisma. */
-const DAY_OF_WEEK: DayOfWeek[] = [
+export const DAY_OF_WEEK: DayOfWeek[] = [
   'SUNDAY',
   'MONDAY',
   'TUESDAY',
@@ -115,4 +115,67 @@ export async function getAvailableSlots(
   ]
 
   return computeAvailableSlots(workStart, workEnd, serviceDurationMinutes, occupied)
+}
+
+/**
+ * Núcleo puro: o intervalo [startMin, endMin] cabe na janela de trabalho
+ * [workStart, workEnd] e não colide com nenhum bloqueio. (sem I/O)
+ */
+export function fitsSchedule(
+  startMin: number,
+  endMin: number,
+  workStart: number,
+  workEnd: number,
+  blocks: OccupiedInterval[]
+): boolean {
+  if (startMin < workStart || endMin > workEnd) return false
+  return !blocks.some((b) => startMin < b.end && endMin > b.start)
+}
+
+/**
+ * Valida, no servidor, se um agendamento de [scheduledAt, endAt] respeita o
+ * horário de trabalho do barbeiro e não cai em um bloqueio (do barbeiro ou da
+ * barbearia). NÃO checa conflito com outros agendamentos — isso é feito à parte,
+ * dentro da transaction Serializable (RN-01). Aceita `tx` ou o client global.
+ */
+export async function isSlotWithinSchedule(
+  client: Prisma.TransactionClient,
+  barberId: string,
+  scheduledAt: Date,
+  endAt: Date
+): Promise<boolean> {
+  const dayOfWeek = DAY_OF_WEEK[scheduledAt.getDay()]
+
+  const workingHours =
+    (await client.workingHours.findFirst({ where: { barberId, dayOfWeek } })) ??
+    (await client.workingHours.findFirst({ where: { barberId: null, dayOfWeek } }))
+
+  if (!workingHours || !workingHours.isActive) return false
+
+  const dayStart = startOfDay(scheduledAt)
+  const toMinutes = (d: Date) => Math.floor((d.getTime() - dayStart.getTime()) / 60000)
+  const startMin = toMinutes(scheduledAt)
+  const endMin = toMinutes(endAt)
+
+  const blocks = await client.blockedSlot.findMany({
+    where: {
+      OR: [{ barberId }, { barberId: null }],
+      date: { gte: dayStart, lte: endOfDay(scheduledAt) },
+    },
+    select: { startTime: true, endTime: true, allDay: true },
+  })
+
+  const blockIntervals: OccupiedInterval[] = blocks.map((b) =>
+    b.allDay
+      ? { start: 0, end: 24 * 60 }
+      : { start: timeToMinutes(b.startTime), end: timeToMinutes(b.endTime) }
+  )
+
+  return fitsSchedule(
+    startMin,
+    endMin,
+    timeToMinutes(workingHours.startTime),
+    timeToMinutes(workingHours.endTime),
+    blockIntervals
+  )
 }

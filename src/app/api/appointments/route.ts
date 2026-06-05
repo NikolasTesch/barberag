@@ -3,6 +3,7 @@ import { startOfDay, endOfDay } from 'date-fns'
 import { prisma } from '@/lib/prisma/client'
 import { getServerSession } from '@/lib/auth/helpers'
 import { CreateAppointmentSchema } from '@/lib/validations/appointment'
+import { isSlotWithinSchedule } from '@/lib/utils/slots'
 import { sendConfirmationEmail } from '@/lib/notifications/email'
 
 class SlotConflictError extends Error {}
@@ -54,7 +55,6 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Serviço inválido ou indisponível' }, { status: 400 })
   }
   const totalDuration = dbServices.reduce((acc, s) => acc + s.durationMinutes, 0)
-  const totalPrice = dbServices.reduce((acc, s) => acc + s.basePrice, 0)
   const endAt = new Date(scheduledAt.getTime() + totalDuration * 60_000)
 
   // 4. Resolve barbeiro: 'any' → primeiro barbeiro que atende todos os serviços e está livre.
@@ -81,14 +81,32 @@ export async function POST(req: Request) {
   try {
     const appointment = await prisma.$transaction(
       async (tx) => {
+        // Slot válido = livre de conflito (RN-01) E dentro do horário de trabalho,
+        // sem bloqueio. Ambos checados no servidor — nunca confiar só no front.
         let chosen: string | null = null
         for (const id of candidateBarberIds) {
-          if (!(await hasConflict(tx, id, scheduledAt, endAt))) {
+          if (
+            !(await hasConflict(tx, id, scheduledAt, endAt)) &&
+            (await isSlotWithinSchedule(tx, id, scheduledAt, endAt))
+          ) {
             chosen = id
             break
           }
         }
         if (!chosen) throw new SlotConflictError()
+
+        // Preço efetivo por serviço: override do barbeiro (customPrice) ou basePrice.
+        const overrides = await tx.barberService.findMany({
+          where: { barberId: chosen, serviceId: { in: serviceIds } },
+          select: { serviceId: true, customPrice: true },
+        })
+        const priceMap = new Map(overrides.map((o) => [o.serviceId, o.customPrice]))
+        const lineItems = dbServices.map((s) => ({
+          serviceId: s.id,
+          price: priceMap.get(s.id) ?? s.basePrice,
+          duration: s.durationMinutes,
+        }))
+        const totalPrice = lineItems.reduce((acc, li) => acc + li.price, 0)
 
         return tx.appointment.create({
           data: {
@@ -99,11 +117,7 @@ export async function POST(req: Request) {
             totalDuration,
             totalPrice,
             services: {
-              create: dbServices.map((s) => ({
-                serviceId: s.id,
-                price: s.basePrice,
-                duration: s.durationMinutes,
-              })),
+              create: lineItems,
             },
           },
           include: {

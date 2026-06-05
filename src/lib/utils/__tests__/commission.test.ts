@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   calculateCommission,
   selectCommissionRate,
+  ruleSpecificity,
   DEFAULT_COMMISSION_RATE,
   type RuleLike,
 } from '@/lib/utils/commission'
@@ -146,5 +147,38 @@ describe('selectCommissionRate — núcleo puro (preview + cálculo)', () => {
     const { rate, rule } = selectCommissionRate(rules, ctx)
     expect(rate).toBe(DEFAULT_COMMISSION_RATE)
     expect(rule).toBeNull()
+  })
+
+  it('desempata por especificidade — barbeiro (4) vence serviço (2), mesmo com priority defasada', () => {
+    // Ambas casam; antes (priority por contagem) empatavam em 1. Agora barbeiro vence.
+    const rules: RuleLike[] = [
+      { barberId: null, serviceId: 'combo', paymentMethod: null, rate: 0.2, priority: 99 },
+      { barberId: 'rafael', serviceId: null, paymentMethod: null, rate: 0.4, priority: 0 },
+    ]
+    const { rate } = selectCommissionRate(rules, ctx)
+    expect(rate).toBe(0.4)
+  })
+
+  it('a seleção ignora a coluna priority persistida (usa os campos da regra)', () => {
+    const rules: RuleLike[] = [
+      { barberId: 'rafael', serviceId: 'combo', paymentMethod: 'PIX', rate: 0.5, priority: 0 },
+      { barberId: 'rafael', serviceId: null, paymentMethod: null, rate: 0.4, priority: 100 },
+    ]
+    expect(selectCommissionRate(rules, ctx).rate).toBe(0.5)
+  })
+})
+
+describe('ruleSpecificity — ordem total ponderada (RN-03)', () => {
+  it('barbeiro+serviço+pagamento (7) > barbeiro+serviço (6) > barbeiro (4) > padrão (0)', () => {
+    expect(ruleSpecificity({ barberId: 'b', serviceId: 's', paymentMethod: 'PIX' })).toBe(7)
+    expect(ruleSpecificity({ barberId: 'b', serviceId: 's', paymentMethod: null })).toBe(6)
+    expect(ruleSpecificity({ barberId: 'b', serviceId: null, paymentMethod: null })).toBe(4)
+    expect(ruleSpecificity({ barberId: null, serviceId: null, paymentMethod: null })).toBe(0)
+  })
+
+  it('barbeiro (4) > serviço+pagamento (3) — barbeiro domina', () => {
+    expect(ruleSpecificity({ barberId: 'b', serviceId: null, paymentMethod: null })).toBeGreaterThan(
+      ruleSpecificity({ barberId: null, serviceId: 's', paymentMethod: 'PIX' })
+    )
   })
 })

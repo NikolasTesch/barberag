@@ -2,9 +2,14 @@ import { prisma } from '@/lib/prisma/client'
 import { getSessionAdmin } from '@/lib/auth/admin'
 import { CommissionRuleSchema } from '@/lib/validations/commission'
 
-/** Especificidade da regra = quantos campos estão definidos. Vira a priority (RN-03). */
+/**
+ * Especificidade ponderada (RN-03): barbeiro (4) > serviço (2) > pagamento (1).
+ * Ordem TOTAL, sem empates entre conjuntos de campos diferentes. Persistida em
+ * `priority` apenas para ordenação de exibição — a seleção real usa
+ * `ruleSpecificity` calculada dos campos (ver commission.ts).
+ */
 function derivePriority(r: { barberId?: string | null; serviceId?: string | null; paymentMethod?: string | null }): number {
-  return (r.barberId ? 1 : 0) + (r.serviceId ? 1 : 0) + (r.paymentMethod ? 1 : 0)
+  return (r.barberId ? 4 : 0) + (r.serviceId ? 2 : 0) + (r.paymentMethod ? 1 : 0)
 }
 
 /** GET /api/admin/commissions/rules — todas as regras com nomes resolvidos. */

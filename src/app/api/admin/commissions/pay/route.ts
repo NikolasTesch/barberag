@@ -21,21 +21,26 @@ export async function POST(req: Request) {
     .filter(Boolean)
     .join(' — ')
 
-  const pending = await prisma.commission.findMany({
-    where: { barberId, status: 'PENDING' },
-    select: { amount: true },
+  // Leitura + escrita na mesma transaction: o total cobrado bate exatamente com
+  // o conjunto marcado como PAID, sem brecha p/ comissão criada nesse intervalo.
+  const payout = await prisma.$transaction(async (tx) => {
+    const pending = await tx.commission.findMany({
+      where: { barberId, status: 'PENDING' },
+      select: { amount: true },
+    })
+    if (pending.length === 0) return null
+
+    const total = Math.round(pending.reduce((acc, c) => acc + c.amount, 0) * 100) / 100
+    const result = await tx.commission.updateMany({
+      where: { barberId, status: 'PENDING' },
+      data: { status: 'PAID', paidAt, paidById: admin.id, paymentNote: note },
+    })
+    return { count: result.count, total }
   })
 
-  if (pending.length === 0) {
+  if (!payout) {
     return Response.json({ error: 'Nenhuma comissão pendente para este barbeiro.' }, { status: 409 })
   }
 
-  const total = Math.round(pending.reduce((acc, c) => acc + c.amount, 0) * 100) / 100
-
-  const result = await prisma.commission.updateMany({
-    where: { barberId, status: 'PENDING' },
-    data: { status: 'PAID', paidAt, paidById: admin.id, paymentNote: note },
-  })
-
-  return Response.json({ count: result.count, total })
+  return Response.json(payout)
 }

@@ -1,6 +1,10 @@
 import { runReminders } from '@/lib/notifications/reminders'
 
-/** GET /api/cron/reminders-2h — Vercel Cron (a cada 30min). Protegido por CRON_SECRET (RN-07). */
+/**
+ * GET /api/cron/reminders-2h — lembrete de 2h. Protegido por CRON_SECRET (RN-07).
+ * DESABILITADO por enquanto: não há entrada em vercel.json, então o cron não dispara.
+ * O endpoint segue funcional para acionamento manual/futuro.
+ */
 export async function GET(req: Request) {
   const auth = req.headers.get('Authorization')
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {

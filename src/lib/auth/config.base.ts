@@ -9,6 +9,7 @@ import Google from 'next-auth/providers/google'
  * `config.ts` (runtime Node), que estende esta base.
  */
 export const authConfig = {
+  trustHost: true,
   pages: {
     signIn: '/login',
     error: '/login',

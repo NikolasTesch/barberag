@@ -31,6 +31,7 @@ export async function GET(req: Request) {
       appointment: {
         select: {
           scheduledAt: true,
+          completedAt: true,
           paymentMethod: true,
           client: { select: { name: true } },
           services: { select: { service: { select: { name: true } } } },

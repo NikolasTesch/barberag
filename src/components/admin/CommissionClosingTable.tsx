@@ -12,6 +12,7 @@ interface CommissionDetail {
   amount: number
   rate: number
   date: string
+  completedAt: string | null
   clientName: string
   paymentMethod: string | null
   services: string[]
@@ -193,7 +194,12 @@ export function CommissionClosingTable({
                     className="grid items-center px-3.5 py-2.5 text-[12.5px] border-b border-fill hover:bg-fill-soft transition-colors"
                     style={{ gridTemplateColumns: '0.9fr 1.6fr 0.9fr 0.5fr 0.8fr' }}
                   >
-                    <span className="text-textMuted">{format(new Date(c.date), 'dd/MM', { locale: ptBR })}</span>
+                    <span className="text-textMuted leading-tight">
+                      <span className="block">{format(new Date(c.date), 'dd/MM', { locale: ptBR })}</span>
+                      <span className="block font-mono text-[10px]">
+                        {c.completedAt ? format(new Date(c.completedAt), 'HH:mm') : '—'}
+                      </span>
+                    </span>
                     <span className="truncate">
                       <span className="font-semibold">{c.clientName}</span>
                       <span className="text-textDisabled"> · {c.services.join(', ')}</span>

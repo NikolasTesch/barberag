@@ -22,6 +22,7 @@ export async function GET() {
       appointment: {
         select: {
           scheduledAt: true,
+          completedAt: true,
           paymentMethod: true,
           client: { select: { name: true } },
           services: { select: { service: { select: { name: true } } } },
@@ -48,6 +49,7 @@ export async function GET() {
       amount: c.amount,
       rate: c.rate,
       date: c.appointment.scheduledAt.toISOString(),
+      completedAt: c.appointment.completedAt?.toISOString() ?? null,
       clientName: c.appointment.client.name,
       paymentMethod: c.appointment.paymentMethod,
       services: c.appointment.services.map((s) => s.service.name),

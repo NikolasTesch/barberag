@@ -17,6 +17,7 @@ interface CommissionRow {
   createdAt: string
   appointment: {
     scheduledAt: string
+    completedAt: string | null
     paymentMethod: string | null
     client: { name: string }
     services: { service: { name: string } }[]
@@ -149,8 +150,13 @@ export default function ComissoesBarberPage() {
                   i % 2 ? 'bg-fill-soft' : 'bg-white'
                 }`}
               >
-                <span className="text-textMuted">
-                  {format(new Date(row.appointment.scheduledAt), 'dd MMM', { locale: ptBR })}
+                <span className="text-textMuted leading-tight">
+                  <span className="block">{format(new Date(row.appointment.scheduledAt), 'dd MMM', { locale: ptBR })}</span>
+                  <span className="block font-mono text-[10px]">
+                    {row.appointment.completedAt
+                      ? format(new Date(row.appointment.completedAt), 'HH:mm')
+                      : '—'}
+                  </span>
                 </span>
                 <span className="font-bold truncate">{row.appointment.client.name}</span>
                 <span className="text-textMuted truncate">

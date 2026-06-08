@@ -8,7 +8,7 @@ interface StepIndicatorProps {
 
 export function StepIndicator({ activeStep }: StepIndicatorProps) {
   return (
-    <div className="px-3 pt-3 pb-2 border-b border-fill">
+    <div className="px-3 pt-3 pb-2 border-b border-fill lg:max-w-3xl lg:w-full lg:mx-auto lg:px-0">
       <div className="flex gap-1.5 mb-1.5">
         {STEPS.map((_, i) => (
           <div

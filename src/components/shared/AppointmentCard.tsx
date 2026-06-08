@@ -59,7 +59,7 @@ export function AppointmentCard({
         <div className="flex items-center gap-1.5">
           <User size={14} /> {appointment.barber.user.name}
         </div>
-        <div className="flex items-center gap-1.5 capitalize">
+        <div className="flex items-center gap-1.5">
           <Calendar size={14} /> {format(date, "EEE, d 'de' MMM", { locale: ptBR })}
         </div>
         <div className="flex items-center gap-1.5">

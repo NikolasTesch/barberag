@@ -83,7 +83,7 @@ export default function AgendamentosPage() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5">
+      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5 lg:max-w-2xl lg:w-full lg:mx-auto">
         {loading && [0, 1].map((i) => <div key={i} className="h-40 rounded-xl bg-fill animate-pulse" />)}
         {!loading && error && (
           <div className="flex flex-col items-center gap-3 py-8">

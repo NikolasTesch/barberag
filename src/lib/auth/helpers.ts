@@ -4,7 +4,7 @@ import { auth } from '@/lib/auth/config'
 
 /** Home padrão de cada role — usada em redirects pós-login e em guards. */
 export const ROLE_HOME: Record<Role, string> = {
-  CLIENT: '/agendar',
+  CLIENT: '/inicio',
   BARBER: '/agenda',
   ADMIN: '/dashboard',
 }

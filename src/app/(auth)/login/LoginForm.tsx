@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { LoginSchema } from '@/lib/validations/auth'
 
 const ROLE_HOME: Record<string, string> = {
-  CLIENT: '/agendar',
+  CLIENT: '/inicio',
   BARBER: '/agenda',
   ADMIN: '/dashboard',
 }

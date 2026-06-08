@@ -56,15 +56,17 @@ export function BarberSelector() {
 
   return (
     <motion.div
-      className="p-3 flex flex-col gap-2.5"
+      className="p-3 grid grid-cols-1 lg:grid-cols-2 gap-2.5 lg:max-w-3xl lg:mx-auto"
       initial="hidden"
       animate="show"
       variants={{ show: { transition: { staggerChildren: 0.05 } } }}
     >
-      <AnyBarberCard
-        selected={selectedBarberId === 'any'}
-        onSelect={() => choose('any', 'Qualquer barbeiro')}
-      />
+      <div className="lg:col-span-2">
+        <AnyBarberCard
+          selected={selectedBarberId === 'any'}
+          onSelect={() => choose('any', 'Qualquer barbeiro')}
+        />
+      </div>
       {barbers.map((b) => (
         <BarberCard
           key={b.id}

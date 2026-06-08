@@ -159,10 +159,10 @@ export function CommissionClosingTable({
       {groups.map((g) => {
         const isOpen = open === g.barberId
         return (
-          <div key={g.barberId} className="border border-line rounded-xl bg-white overflow-hidden">
+          <div key={g.barberId} className="border border-line rounded-xl bg-white shadow-sm overflow-hidden">
             <button
               onClick={() => setOpen(isOpen ? null : g.barberId)}
-              className="w-full flex items-center gap-3 px-3.5 py-3 text-left"
+              className="w-full flex items-center gap-3 px-3.5 py-3 text-left hover:bg-fill-soft transition-colors cursor-pointer"
             >
               <span className="w-[30px] h-[30px] rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold flex-shrink-0">
                 {initials(g.barberName)}
@@ -190,7 +190,7 @@ export function CommissionClosingTable({
                 {g.commissions.map((c) => (
                   <div
                     key={c.id}
-                    className="grid items-center px-3.5 py-2.5 text-[12.5px] border-b border-fill"
+                    className="grid items-center px-3.5 py-2.5 text-[12.5px] border-b border-fill hover:bg-fill-soft transition-colors"
                     style={{ gridTemplateColumns: '0.9fr 1.6fr 0.9fr 0.5fr 0.8fr' }}
                   >
                     <span className="text-textMuted">{format(new Date(c.date), 'dd/MM', { locale: ptBR })}</span>

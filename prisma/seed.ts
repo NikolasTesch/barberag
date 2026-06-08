@@ -122,8 +122,29 @@ async function main() {
 
   const rafaelBarber = rafael.barberProfile!
   const brunoBarber = bruno.barberProfile!
+  const vinicius = await prisma.user.create({
+    data: {
+      name: 'Vinicius Barbosa',
+      email: 'vinicius@barberag.com',
+      role: 'BARBER',
+      phone: '(11) 98888-1004',
+      image:
+        'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=400&fit=crop&crop=faces',
+      passwordHash: await bcrypt.hash('barber123', 10),
+      barberProfile: {
+        create: {
+          bio: 'Especialista em cortes afro, black power e tranças. 6 anos de experiência com cabelos crespos e cacheados.',
+          specialties: ['Afro', 'Black Power', 'Corte + Barba', 'Tranças'],
+          commissionRate: 0.37,
+        },
+      },
+    },
+    include: { barberProfile: true },
+  })
+
   const diegoBarber = diego.barberProfile!
-  const barbers = [rafaelBarber, brunoBarber, diegoBarber]
+  const viniciusBarber = vinicius.barberProfile!
+  const barbers = [rafaelBarber, brunoBarber, diegoBarber, viniciusBarber]
 
   // ─── Serviços ─────────────────────────────────────────────────────────────────
   const servicesData = [
@@ -232,6 +253,7 @@ async function main() {
       { barberId: rafaelBarber.id, serviceId: null, paymentMethod: null, rate: 0.4, priority: 2 },
       { barberId: brunoBarber.id, serviceId: null, paymentMethod: null, rate: 0.35, priority: 2 },
       { barberId: diegoBarber.id, serviceId: null, paymentMethod: null, rate: 0.38, priority: 2 },
+      { barberId: viniciusBarber.id, serviceId: null, paymentMethod: null, rate: 0.37, priority: 2 },
     ],
   })
 
@@ -417,7 +439,7 @@ async function main() {
   }
 
   console.log(
-    '✅ Seed concluído: 1 admin, 3 barbeiros, 8 clientes, 8 serviços, 8 fotos na galeria,\n' +
+    '✅ Seed concluído: 1 admin, 4 barbeiros, 8 clientes, 8 serviços, 8 fotos na galeria,\n' +
       '   18 atendimentos concluídos com comissões, ~14 avaliações publicadas e 4 agendamentos futuros.',
   )
 }

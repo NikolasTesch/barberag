@@ -113,7 +113,7 @@ export default function AvaliacoesAdminPage() {
           </div>
         ) : (
           reviews.map((r) => (
-            <div key={r.id} className="border border-line rounded-xl bg-white p-4 flex flex-col gap-2">
+            <div key={r.id} className="border border-line rounded-xl bg-white shadow-sm p-4 flex flex-col gap-2">
               <div className="flex items-center gap-3">
                 <Stars n={r.rating} />
                 <span className="text-[13px] text-textMuted">

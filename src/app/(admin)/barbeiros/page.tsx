@@ -95,7 +95,7 @@ export default function BarbeirosPage() {
           </div>
         )}
 
-        <div className="border border-line rounded-xl bg-white overflow-hidden">
+        <div className="border border-line rounded-xl bg-white shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
           <div className="min-w-[720px]">
           <div
@@ -120,8 +120,8 @@ export default function BarbeirosPage() {
             filtered.map((b, i) => (
               <div
                 key={b.id}
-                className="grid items-center px-3.5 py-3 border-b border-fill text-[13px]"
-                style={{ gridTemplateColumns: '2fr 0.8fr 0.7fr 1fr 1fr 1.2fr', background: i % 2 ? '#F7F5F2' : '#fff' }}
+                className="grid items-center px-3.5 py-3 border-b border-fill text-[13px] hover:bg-fill-soft transition-colors"
+                style={{ gridTemplateColumns: '2fr 0.8fr 0.7fr 1fr 1fr 1.2fr' }}
               >
                 <span className="flex items-center gap-2.5 min-w-0">
                   <span className="w-[30px] h-[30px] rounded-full bg-primary text-white text-xs flex items-center justify-center font-bold flex-shrink-0 overflow-hidden">

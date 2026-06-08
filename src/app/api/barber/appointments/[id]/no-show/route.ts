@@ -10,7 +10,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   if (!appointment || appointment.barberId !== barber.id) {
     return Response.json({ error: 'Não encontrado' }, { status: 404 })
   }
-  if (!['SCHEDULED', 'CONFIRMED'].includes(appointment.status)) {
+  if (!['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'].includes(appointment.status)) {
     return Response.json({ error: 'Invalid status transition' }, { status: 400 })
   }
 

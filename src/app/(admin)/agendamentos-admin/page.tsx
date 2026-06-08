@@ -1,10 +1,19 @@
+import { Calendar, CheckCircle2, Loader2 as LoaderIcon, DollarSign } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function Stat({ label, value, color, icon: Icon }: { label: string; value: string; color?: string; icon?: LucideIcon }) {
   return (
-    <div className="flex-1 border border-line rounded-[10px] px-3.5 py-3 bg-white">
-      <div className="font-mono text-[9.5px] text-textDisabled tracking-wide uppercase">{label}</div>
-      <div className={`font-bold text-[22px] mt-0.5 ${color || 'text-primary'}`}>{value}</div>
+    <div className="flex-1 border border-line rounded-[10px] px-3.5 py-3 bg-white shadow-sm">
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <div className="font-mono text-[9.5px] text-textDisabled tracking-wide uppercase leading-tight">{label}</div>
+        {Icon && (
+          <div className="w-[26px] h-[26px] rounded-lg bg-fill flex items-center justify-center flex-shrink-0 text-textMuted">
+            <Icon size={13} />
+          </div>
+        )}
+      </div>
+      <div className={`font-bold text-[22px] tracking-tight ${color || 'text-primary'}`}>{value}</div>
     </div>
   )
 }
@@ -43,10 +52,10 @@ export default function AgendamentosAdminPage() {
 
       <div className="p-4 flex flex-col gap-3.5 overflow-auto">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Stat label="Total do dia" value="8" />
-          <Stat label="Concluídos" value="3" color="text-success" />
-          <Stat label="Em andamento" value="1" color="text-warning" />
-          <Stat label="Faturamento prev." value="R$ 470" color="text-accent-deep" />
+          <Stat label="Total do dia" value="8" icon={Calendar} />
+          <Stat label="Concluídos" value="3" color="text-success" icon={CheckCircle2} />
+          <Stat label="Em andamento" value="1" color="text-warning" icon={LoaderIcon} />
+          <Stat label="Faturamento prev." value="R$ 470" color="text-accent-deep" icon={DollarSign} />
         </div>
 
         <div className="border border-line rounded-xl bg-white overflow-hidden">
@@ -63,11 +72,8 @@ export default function AgendamentosAdminPage() {
           {APPOINTMENTS.map((a, i) => (
             <div
               key={i}
-              className="grid items-center px-3.5 py-3 border-b border-fill text-[13px]"
-              style={{
-                gridTemplateColumns: '0.6fr 1.2fr 1fr 1.2fr 0.7fr 1fr',
-                background: i % 2 ? '#F7F5F2' : '#fff',
-              }}
+              className="grid items-center px-3.5 py-3 border-b border-fill text-[13px] hover:bg-fill-soft transition-colors cursor-default"
+              style={{ gridTemplateColumns: '0.6fr 1.2fr 1fr 1.2fr 0.7fr 1fr' }}
             >
               <span className="font-bold">{a.time}</span>
               <span className="font-bold">{a.client}</span>

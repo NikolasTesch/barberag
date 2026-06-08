@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { DollarSign, Scissors, CreditCard, UserPlus, BarChart2 } from 'lucide-react'
 import { KPICard } from '@/components/dashboard/KPICard'
 import { RevenueChart, type RevenuePoint } from '@/components/dashboard/RevenueChart'
 import { ServicesPieChart, type ServiceSlice } from '@/components/dashboard/ServicesPieChart'
@@ -47,11 +48,12 @@ function Panel({
   children: React.ReactNode
 }) {
   return (
-    <div className="border border-line rounded-xl bg-white flex flex-col p-3.5">
+    <div className="border border-line rounded-xl bg-white shadow-sm flex flex-col p-3.5">
       <div className="flex items-center mb-3">
-        <p className="text-[10px] font-semibold tracking-widest uppercase text-textMuted flex-1">{title}</p>
+        <p className="text-[10px] font-bold tracking-widest uppercase text-textDisabled flex-1">{title}</p>
         {right}
       </div>
+      <div className="border-t border-fill -mx-3.5 mb-3.5" />
       {children}
     </div>
   )
@@ -132,6 +134,7 @@ export default function DashboardPage() {
             trendLabel={trendLabel}
             loading={loading}
             accent
+            icon={DollarSign}
           />
           <KPICard
             label="Atendimentos"
@@ -140,6 +143,7 @@ export default function DashboardPage() {
             trend={t?.totalAppointments}
             trendLabel={trendLabel}
             loading={loading}
+            icon={Scissors}
           />
           <KPICard
             label="Ticket Médio"
@@ -148,6 +152,7 @@ export default function DashboardPage() {
             trend={t?.averageTicket}
             trendLabel={trendLabel}
             loading={loading}
+            icon={CreditCard}
           />
           <KPICard
             label="Novos Clientes"
@@ -156,12 +161,14 @@ export default function DashboardPage() {
             trend={t?.newClients}
             trendLabel={trendLabel}
             loading={loading}
+            icon={UserPlus}
           />
           <KPICard
             label="Ocupação"
             value={k?.occupancyRate ?? 0}
             format={(n) => `${Math.round(n)}%`}
             loading={loading}
+            icon={BarChart2}
           />
         </div>
 
@@ -197,8 +204,9 @@ export default function DashboardPage() {
         <Panel
           title="Agenda em tempo real — hoje"
           right={
-            <span className="text-[11px] font-semibold text-accent bg-accent-soft px-2 py-0.5 rounded-full">
-              ● ao vivo
+            <span className="text-[11px] font-semibold text-accent bg-accent-soft px-2.5 py-1 rounded-full flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse flex-shrink-0" />
+              ao vivo
             </span>
           }
         >

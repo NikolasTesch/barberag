@@ -36,7 +36,7 @@ export function BarberRanking({ data }: { data: BarberMetric[] }) {
           {data.map((b, i) => (
             <tr
               key={b.barberId}
-              className={`border-t border-fill ${i === 0 ? 'bg-accent-soft/40' : ''}`}
+              className={`border-t border-fill transition-colors hover:bg-fill-soft ${i === 0 ? 'bg-accent-soft/40 hover:bg-accent-soft/60' : ''}`}
             >
               <td className="py-2.5 pl-1 pr-2 font-mono text-[11px] text-textDisabled">{i + 1}</td>
               <td className="py-2.5 pr-2">

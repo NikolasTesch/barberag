@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
 
 /** Anima de 0 até `value` em `duration` ms via requestAnimationFrame. */
 function useCountUp(value: number, duration = 800): number {
@@ -38,18 +39,34 @@ export interface KPICardProps {
   trendLabel?: string
   loading?: boolean
   accent?: boolean
+  icon?: LucideIcon
 }
 
-export function KPICard({ label, value, format, trend, trendLabel, loading, accent }: KPICardProps) {
+export function KPICard({ label, value, format, trend, trendLabel, loading, accent, icon: Icon }: KPICardProps) {
   const animated = useCountUp(loading ? 0 : value)
 
   return (
-    <div className="flex-1 border border-line rounded-[10px] px-3.5 py-3 bg-white">
-      <div className="font-mono text-[9.5px] text-textDisabled tracking-wide uppercase">{label}</div>
+    <div
+      className={`flex-1 rounded-[10px] px-3.5 py-3 bg-white shadow-sm transition-shadow hover:shadow ${
+        accent ? 'border border-accent/40' : 'border border-line'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <div className="font-mono text-[9.5px] text-textDisabled tracking-wide uppercase leading-tight">{label}</div>
+        {Icon && (
+          <div
+            className={`w-[26px] h-[26px] rounded-lg flex items-center justify-center flex-shrink-0 ${
+              accent ? 'bg-accent/10 text-accent' : 'bg-fill text-textMuted'
+            }`}
+          >
+            <Icon size={13} />
+          </div>
+        )}
+      </div>
       {loading ? (
-        <div className="h-[27px] mt-1 w-20 bg-fill rounded animate-pulse" />
+        <div className="h-[27px] w-20 bg-fill rounded animate-pulse" />
       ) : (
-        <div className={`font-bold text-[22px] mt-0.5 ${accent ? 'text-accent-deep' : 'text-primary'}`}>
+        <div className={`font-bold text-[22px] tracking-tight ${accent ? 'text-accent-deep' : 'text-primary'}`}>
           {format(animated)}
         </div>
       )}
@@ -60,7 +77,7 @@ export function KPICard({ label, value, format, trend, trendLabel, loading, acce
           }`}
         >
           {trend >= 0 ? '▲' : '▼'} {Math.abs(trend)}%
-          {trendLabel && <span className="text-textDisabled font-normal">{trendLabel}</span>}
+          {trendLabel && <span className="text-textDisabled font-normal ml-0.5">{trendLabel}</span>}
         </div>
       )}
     </div>

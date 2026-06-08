@@ -134,8 +134,8 @@ export default function ConfiguracoesPage() {
               <div className="border border-error/30 bg-error/5 text-error rounded-lg px-4 py-2.5 text-sm">{error}</div>
             )}
 
-            <section className="border border-line rounded-xl bg-white p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <h3 className="col-span-2 text-[11px] font-semibold tracking-widest uppercase text-textMuted">Dados da empresa</h3>
+            <section className="border border-line rounded-xl bg-white shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <h3 className="col-span-2 text-[10px] font-bold tracking-widest uppercase text-textDisabled">Dados da empresa</h3>
               <div className="col-span-2">
                 <FieldLabel>Nome *</FieldLabel>
                 <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required />
@@ -166,8 +166,8 @@ export default function ConfiguracoesPage() {
               </div>
             </section>
 
-            <section className="border border-line rounded-xl bg-white p-4">
-              <h3 className="text-[11px] font-semibold tracking-widest uppercase text-textMuted mb-3">Política de cancelamento</h3>
+            <section className="border border-line rounded-xl bg-white shadow-sm p-4">
+              <h3 className="text-[10px] font-bold tracking-widest uppercase text-textDisabled mb-3">Política de cancelamento</h3>
               <FieldLabel>Antecedência mínima para cancelamento (horas)</FieldLabel>
               <input
                 type="number"
@@ -179,8 +179,8 @@ export default function ConfiguracoesPage() {
               />
             </section>
 
-            <section className="border border-line rounded-xl bg-white p-4">
-              <h3 className="text-[11px] font-semibold tracking-widest uppercase text-textMuted mb-1">Horário de funcionamento</h3>
+            <section className="border border-line rounded-xl bg-white shadow-sm p-4">
+              <h3 className="text-[10px] font-bold tracking-widest uppercase text-textDisabled mb-1">Horário de funcionamento</h3>
               <p className="text-[12px] text-textMuted mb-3">Padrão herdado por barbeiros sem horário próprio.</p>
               <div className="flex flex-col gap-2">
                 {days.map((w) => (

@@ -80,7 +80,7 @@ export default function RelatoriosPage() {
 
       <div className="p-4 flex flex-col gap-3.5 overflow-auto">
         {/* Filtros */}
-        <div className="flex flex-wrap items-end gap-3 border border-line rounded-xl bg-white p-4">
+        <div className="flex flex-wrap items-end gap-3 border border-line rounded-xl bg-white shadow-sm p-4">
           <div className="flex flex-col">
             <label className="text-[11px] font-semibold text-textMuted mb-1">Relatório</label>
             <select
@@ -111,7 +111,7 @@ export default function RelatoriosPage() {
         )}
 
         {/* Tabela */}
-        <div className="border border-line rounded-xl bg-white overflow-hidden">
+        <div className="border border-line rounded-xl bg-white shadow-sm overflow-hidden">
           {loading ? (
             <div className="py-12 flex items-center justify-center text-textMuted text-sm">
               <Loader2 size={16} className="animate-spin mr-2" /> Gerando relatório…
@@ -132,7 +132,7 @@ export default function RelatoriosPage() {
                 </thead>
                 <tbody>
                   {rows.slice(0, 200).map((row, i) => (
-                    <tr key={i} className="border-b border-fill" style={{ background: i % 2 ? '#F7F5F2' : '#fff' }}>
+                    <tr key={i} className="border-b border-fill hover:bg-fill-soft transition-colors">
                       {row.map((cell, j) => (
                         <td key={j} className="px-3 py-2 whitespace-nowrap">{cell}</td>
                       ))}

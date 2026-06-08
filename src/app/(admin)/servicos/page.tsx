@@ -97,7 +97,7 @@ export default function ServicosPage() {
           </div>
         )}
 
-        <div className="border border-line rounded-xl bg-white overflow-hidden">
+        <div className="border border-line rounded-xl bg-white shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
           <div className="min-w-[760px]">
           <div
@@ -123,8 +123,8 @@ export default function ServicosPage() {
             filtered.map((s, i) => (
               <div
                 key={s.id}
-                className="grid items-center px-3.5 py-3 border-b border-fill text-[13px]"
-                style={{ gridTemplateColumns: '2fr 1fr 0.8fr 0.9fr 0.8fr 0.7fr 1.2fr', background: i % 2 ? '#F7F5F2' : '#fff' }}
+                className="grid items-center px-3.5 py-3 border-b border-fill text-[13px] hover:bg-fill-soft transition-colors"
+                style={{ gridTemplateColumns: '2fr 1fr 0.8fr 0.9fr 0.8fr 0.7fr 1.2fr' }}
               >
                 <span className="font-bold truncate">{s.name}</span>
                 <span className="text-textMuted">{CATEGORY_LABELS[s.category]}</span>

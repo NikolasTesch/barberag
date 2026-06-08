@@ -62,13 +62,18 @@ export function ServiceSelector({ services }: { services: ServiceCardData[] }) {
       {/* Footer sticky */}
       <div className="border-t border-line p-3 bg-white">
         <div className="flex justify-between mb-2 text-[13px]">
-          <span>
-            {selectedServices.length} serviço{selectedServices.length !== 1 ? 's' : ''} · {totalDuration}{' '}
-            min
-          </span>
-          <span className="font-bold text-accent-deep">
-            R$ {totalPrice.toFixed(2).replace('.', ',')}
-          </span>
+          {selectedServices.length === 0 ? (
+            <span className="text-textMuted">Selecione um serviço para continuar</span>
+          ) : (
+            <>
+              <span>
+                {selectedServices.length} serviço{selectedServices.length !== 1 ? 's' : ''} · {totalDuration} min
+              </span>
+              <span className="font-bold text-accent-deep">
+                R$ {totalPrice.toFixed(2).replace('.', ',')}
+              </span>
+            </>
+          )}
         </div>
         <button
           disabled={selectedServices.length === 0}

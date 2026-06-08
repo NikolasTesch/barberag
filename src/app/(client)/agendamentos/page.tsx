@@ -86,9 +86,15 @@ export default function AgendamentosPage() {
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5">
         {loading && [0, 1].map((i) => <div key={i} className="h-40 rounded-xl bg-fill animate-pulse" />)}
         {!loading && error && (
-          <p className="text-center text-sm text-textMuted py-6">
-            Erro ao carregar. Tente novamente.
-          </p>
+          <div className="flex flex-col items-center gap-3 py-8">
+            <p className="text-center text-sm text-textMuted">Erro ao carregar agendamentos.</p>
+            <button
+              onClick={() => load(tab)}
+              className="text-[13px] font-semibold text-accent-deep border border-accent/30 px-4 py-2 rounded-lg hover:bg-accent-soft transition-colors"
+            >
+              Tentar novamente
+            </button>
+          </div>
         )}
         {!loading && !error && items.length === 0 && (
           <EmptyState

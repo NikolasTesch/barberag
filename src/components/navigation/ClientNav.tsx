@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Calendar, User, Plus, Home } from 'lucide-react'
 
 const tabs = [
-  { label: 'Início', href: '/', icon: Home },
+  { label: 'Início', href: '/inicio', icon: Home },
   { label: 'Agenda', href: '/agendamentos', icon: Calendar },
   { label: 'Agendar', href: '/agendar', icon: Plus, cta: true },
   { label: 'Perfil', href: '/perfil', icon: User },
@@ -17,7 +17,7 @@ export function ClientNav() {
   return (
     <nav className="flex border-t border-line bg-white">
       {tabs.map(({ label, href, icon: Icon, cta }) => {
-        const isActive = href === pathname || (href !== '/' && pathname.startsWith(href))
+        const isActive = href === pathname || (href !== '/inicio' && pathname.startsWith(href))
         return (
           <Link
             key={label}

@@ -11,6 +11,7 @@ import {
   isSameDay,
   isSameMonth,
   isBefore,
+  isAfter,
   startOfDay,
   format,
 } from 'date-fns'
@@ -29,6 +30,7 @@ export function CalendarPicker({
 }) {
   const [month, setMonth] = useState(startOfMonth(selectedDate ?? new Date()))
   const today = startOfDay(new Date())
+  const isPrevDisabled = !isAfter(month, startOfMonth(today))
 
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(month)),
@@ -41,7 +43,11 @@ export function CalendarPicker({
   return (
     <div className="bg-white border border-line rounded-xl p-3">
       <div className="flex items-center justify-between mb-2">
-        <button onClick={() => setMonth(addMonths(month, -1))} className="p-1 text-textMuted">
+        <button
+          onClick={() => setMonth(addMonths(month, -1))}
+          disabled={isPrevDisabled}
+          className="p-1 text-textMuted disabled:opacity-30 disabled:cursor-not-allowed"
+        >
           <ChevronLeft size={18} />
         </button>
         <span className="font-bold text-[14px] capitalize">
